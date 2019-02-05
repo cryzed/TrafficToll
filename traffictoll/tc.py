@@ -19,9 +19,12 @@ CLASS_ID_REGEX = r'class .+? (?P<qdisc_id>[a-z0-9]+?):(?P<class_id>[a-z0-9]+)'
 INGRESS_QDISC_PARENT_ID = 'ffff:fff1'
 
 
-def _clean_up():
-    logger.info('Cleaning up IFB devices')
-    _run('rmmod ifb')
+def _clean_up(remove_ifb_device=False, shutdown_ifb_device=None):
+    logger.info('Cleaning up IFB device')
+    if remove_ifb_device:
+        _run('rmmod ifb')
+    if shutdown_ifb_device:
+        _run(f'ip link set dev {shutdown_ifb_device} down')
 
 
 def _activate_interface(name):
@@ -44,13 +47,16 @@ def _acquire_ifb_device():
     for interface_name, interface in interfaces.items():
         if not re.match(IFB_REGEX, interface_name):
             continue
+
         if not interface.isup:
             _activate_interface(interface_name)
+            # Deactivate existing IFB device if it wasn't activated
+            atexit.register(_clean_up, shutdown_ifb_device=interface_name)
 
         return interface_name
 
-    # Clean up IFB devices if they were created
-    atexit.register(_clean_up)
+    # Clean up IFB device if it was created
+    atexit.register(_clean_up, remove_ifb_device=True)
     return _create_ifb_device()
 
 
