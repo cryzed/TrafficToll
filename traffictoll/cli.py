@@ -25,7 +25,11 @@ def _clean_up(ingress_interface, egress_interface):
 
 def cli_main():
     arguments = argument_parser.parse_args()
-    argument_parser.exit(main(arguments))
+
+    try:
+        main(arguments)
+    except KeyboardInterrupt:
+        logger.info('Aborted.')
 
 
 def main(arguments):
