@@ -36,6 +36,7 @@ def _create_ifb_device():
     _run('modprobe ifb numifbs=1')
     after = set(psutil.net_if_stats())
 
+    # It doesn't matter if the created IFB device is ambiguous, any will do
     name = after.difference(before).pop()
     _activate_interface(name)
     return name
@@ -138,20 +139,20 @@ def tc_add_class(interface, parent_qdisc_id, parent_class_id, rate):
 
 def _get_filter_ids(interface):
     process = _run(f'tc filter show dev {interface}', stdout=subprocess.PIPE, universal_newlines=True)
-    handles = []
+    ids = set()
     for line in process.stdout.splitlines():
         match = re.match(FILTER_ID_REGEX, line)
         if match:
-            handles.append(match.group(1))
+            ids.add(match.group(1))
 
-    return handles
+    return ids
 
 
 def tc_add_filter(interface, predicate, parent_qdisc_id, class_id):
-    before = set(_get_filter_ids(interface))
+    before = _get_filter_ids(interface)
     _run((f'tc filter add dev {interface} protocol ip parent {parent_qdisc_id}: prio 1 u32 {predicate} flowid '
           f'{parent_qdisc_id}:{class_id}'))
-    after = set(_get_filter_ids(interface))
+    after = _get_filter_ids(interface)
 
     difference = after.difference(before)
     if len(difference) > 1:
