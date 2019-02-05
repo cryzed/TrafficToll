@@ -1,62 +1,38 @@
 import atexit
-import os
 import re
-import shlex
-import shutil
 import subprocess
-import tempfile
 
 import psutil
 from loguru import logger
 
-ENCODING = 'UTF-8'
-MODPROBE_PATH = shutil.which('modprobe')
-IP_PATH = shutil.which('ip')
-TC_PATH = shutil.which('tc')
-RMMOD_PATH = shutil.which('rmmod')
-IFB_REGEX = r'ifb\d+'
-FILTER_ID_REGEX = r'filter .*? fh ([a-z0-9]+::[a-z0-9]+?)(?:\s|$)'
-QDISC_ID_REGEX = r'qdisc .+? ([a-z0-9]+?):'
-CLASS_ID_REGEX = r'class .+? (?P<qdisc_id>[a-z0-9]+?):(?P<class_id>[a-z0-9]+)'
-INGRESS_QDISC_ID = 'ffff:fff1'
+from traffictoll.utils import _run
 
 # "TC store rates as a 32-bit unsigned integer in bps internally, so we can specify a max rate of 4294967295 bps"
 # (source: `$ man tc`)
 MAX_RATE = 4294967295
+IFB_REGEX = r'ifb\d+'
+FILTER_ID_REGEX = r'filter .*? fh ([a-z0-9]+::[a-z0-9]+?)(?:\s|$)'
+QDISC_ID_REGEX = r'qdisc .+? ([a-z0-9]+?):'
+CLASS_ID_REGEX = r'class .+? (?P<qdisc_id>[a-z0-9]+?):(?P<class_id>[a-z0-9]+)'
 
-# TODO: Setup egress qdisc/root class
-# TODO: Is the ffff handle something special, or can we just generate our own?
-TC_SETUP = '''
-# Configure IFB device for ingress shaping: World -> IFB -> QDisc (egress shaping) -> Interface
-qdisc add dev {interface} handle ffff: ingress
-filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 action mirred egress redirect dev {ifb_device}
-
-qdisc add dev {ifb_device} root handle {ifb_device_qdisc_id}: htb
-class add dev {ifb_device} parent {ifb_device_qdisc_id}: classid {ifb_device_qdisc_id}:{ifb_root_class_id} htb rate {download_rate}
-'''
+# This ID seems to be fixed for the ingress QDisc
+INGRESS_QDISC_ID = 'ffff:fff1'
 
 
 def _clean_up():
-    logger.info('Cleaning up IFB devices...')
-    command = [RMMOD_PATH, 'ifb']
-    logger.debug(' '.join(command))
-    subprocess.run(command)
+    logger.info('Cleaning up IFB devices')
+    _run('rmmod ifb')
 
 
 def _activate_interface(name):
-    command = [IP_PATH, 'link', 'set', 'dev', name, 'up']
-    logger.debug(' '.join(command))
-    subprocess.run(command)
+    _run(f'ip link set dev {name} up')
 
 
 def _create_ifb_device():
     before = set(psutil.net_if_stats())
-
-    command = [MODPROBE_PATH, 'ifb', 'numifbs=1']
-    logger.debug(' '.join(command))
-    subprocess.run([MODPROBE_PATH, 'ifb', 'numifbs=1'])
-
+    _run('modprobe ifb numifbs=1')
     after = set(psutil.net_if_stats())
+
     name = after.difference(before).pop()
     _activate_interface(name)
     return name
@@ -89,9 +65,7 @@ def _find_free_id(ids):
 
 
 def _get_free_qdisc_id(interface):
-    command = [TC_PATH, 'qdisc', 'show', 'dev', interface]
-    logger.debug(' '.join(command))
-    process = subprocess.run(command, stdout=subprocess.PIPE, universal_newlines=True)
+    process = _run(f'tc qdisc show dev {interface}', stdout=subprocess.PIPE, universal_newlines=True)
 
     ids = set()
     for line in process.stdout.splitlines():
@@ -104,9 +78,7 @@ def _get_free_qdisc_id(interface):
 
 
 def _get_free_class_id(interface, qdisc_id):
-    command = [TC_PATH, 'class', 'show', 'dev', interface]
-    logger.debug(' '.join(command))
-    process = subprocess.run(command, stdout=subprocess.PIPE, universal_newlines=True)
+    process = _run(f'tc class show dev {interface}', stdout=subprocess.PIPE, universal_newlines=True)
 
     ids = set()
     for line in process.stdout.splitlines():
@@ -121,42 +93,39 @@ def tc_setup(interface, download_rate=None, upload_rate=None):
     download_rate = download_rate or MAX_RATE
     upload_rate = upload_rate or MAX_RATE
 
+    _run(f'tc qdisc add dev {interface} handle ffff: ingress')
+
     ifb_device = _acquire_ifb_device()
+    _run((f'tc filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 action mirred egress'
+          f' redirect dev {ifb_device}'))
+
     ifb_device_qdisc_id = _get_free_qdisc_id(interface)
+    _run(f'tc qdisc add dev {ifb_device} root handle {ifb_device_qdisc_id}: htb')
+
     ifb_root_class_id = _get_free_class_id(interface, ifb_device_qdisc_id)
-    instructions = TC_SETUP.format(
-        interface=interface,
-        ifb_device=ifb_device,
-        ifb_device_qdisc_id=ifb_device_qdisc_id,
-        ifb_root_class_id=ifb_root_class_id,
-        download_rate=download_rate).strip()
+    _run((f'tc class add dev {ifb_device} parent {ifb_device_qdisc_id}: classid '
+          f'{ifb_device_qdisc_id}:{ifb_root_class_id} htb rate {download_rate}'))
 
-    fd, path = tempfile.mkstemp()
-    # noinspection PyArgumentList
-    with os.fdopen(fd, 'w', encoding=ENCODING) as file:
-        file.write(instructions)
+    interface_qdisc_id = _get_free_qdisc_id(interface)
+    _run(f'tc qdisc add dev {interface} root handle {interface_qdisc_id}: htb')
 
-    logger.debug('{}:\n{}', path, instructions)
-    command = [TC_PATH, '-batch', path]
-    logger.debug(' '.join(command))
-    subprocess.run(command)
-    return (ifb_device, ifb_device_qdisc_id, ifb_root_class_id), (interface, None, None)
+    interface_root_class_id = _get_free_class_id(interface, interface_qdisc_id)
+    _run((f'tc class add dev {interface} parent {interface_qdisc_id}: classid '
+          f'{interface_qdisc_id}:{interface_root_class_id} htb rate {upload_rate}'))
+
+    return (ifb_device, ifb_device_qdisc_id, ifb_root_class_id), (
+        interface, interface_qdisc_id, interface_root_class_id)
 
 
 def tc_add_class(interface, parent_qdisc_id, parent_class_id, rate):
     class_id = _get_free_class_id(interface, parent_qdisc_id)
-    command = [TC_PATH, 'class', 'add', 'dev', interface, 'parent', f'{parent_qdisc_id}:{parent_class_id}', 'classid',
-               f'{parent_qdisc_id}:{class_id}', 'htb', 'rate', rate]
-    logger.debug(' '.join(command))
-    subprocess.run(command)
+    _run((f'tc class add dev {interface} parent {parent_qdisc_id}:{parent_class_id} classid '
+          f'{parent_qdisc_id}:{class_id} htb rate {rate}'))
     return class_id
 
 
 def _parse_filter_handles(interface):
-    command = [TC_PATH, 'filter', 'show', 'dev', interface]
-    logger.debug(' '.join(command))
-    process = subprocess.run(command, stdout=subprocess.PIPE, universal_newlines=True)
-
+    process = _run(f'tc filter show dev {interface}', stdout=subprocess.PIPE, universal_newlines=True)
     handles = []
     for line in process.stdout.splitlines():
         match = re.match(FILTER_ID_REGEX, line)
@@ -167,12 +136,9 @@ def _parse_filter_handles(interface):
 
 
 def tc_add_filter(interface, predicate, parent_qdisc_id, class_id):
-    command = [TC_PATH, 'filter', 'add', 'dev', interface, 'protocol', 'ip', 'parent', f'{parent_qdisc_id}:', 'prio',
-               '1', 'u32', *shlex.split(predicate), 'flowid', f'{parent_qdisc_id}:{class_id}']
-    logger.debug(' '.join(command))
-
     before = set(_parse_filter_handles(interface))
-    subprocess.run(command)
+    _run((f'tc filter add dev {interface} protocol ip parent {parent_qdisc_id}: prio 1 u32 {predicate} flowid '
+          f'{parent_qdisc_id}:{class_id}'))
     after = set(_parse_filter_handles(interface))
 
     difference = after.difference(before)
@@ -182,13 +148,8 @@ def tc_add_filter(interface, predicate, parent_qdisc_id, class_id):
 
 
 def tc_remove_filter(interface, filter_id, parent_qdisc_id):
-    command = [TC_PATH, 'filter', 'del', 'dev', interface, 'parent', f'{parent_qdisc_id}:', 'handle', filter_id, 'prio',
-               '1', 'protocol', 'ip', 'u32']
-    logger.debug(' '.join(command))
-    subprocess.run(command)
+    _run(f'tc filter del dev {interface} parent {parent_qdisc_id}: handle {filter_id} prio 1 protocol ip u32')
 
 
 def tc_remove_qdisc(interface, parent='root'):
-    command = [TC_PATH, 'qdisc', 'del', 'dev', interface, 'parent', parent]
-    logger.debug(' '.join(command))
-    subprocess.run(command)
+    _run(f'tc qdisc del dev {interface} parent {parent}')

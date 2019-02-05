@@ -6,8 +6,8 @@ import time
 from loguru import logger
 from ruamel.yaml import YAML
 
+from traffictoll.net import ProcessPredicate, filter_net_connections
 from traffictoll.tc import INGRESS_QDISC_ID, tc_add_class, tc_add_filter, tc_remove_filter, tc_remove_qdisc, tc_setup
-from traffictoll.utils import ProcessPredicate, filter_net_connections
 
 ENCODING = 'UTF-8'
 argument_parser = argparse.ArgumentParser()
@@ -17,9 +17,9 @@ argument_parser.add_argument('--delay', '-d', type=float, default=1)
 
 
 def _clean_up(ingress_interface, egress_interface):
-    logger.info('Cleaning up QDiscs...')
+    logger.info('Cleaning up QDiscs')
     tc_remove_qdisc(ingress_interface)
-    # TODO: Do this smarter
+    tc_remove_qdisc(egress_interface)
     tc_remove_qdisc(egress_interface, INGRESS_QDISC_ID)
 
 
@@ -29,7 +29,7 @@ def cli_main():
     try:
         main(arguments)
     except KeyboardInterrupt:
-        logger.info('Aborted.')
+        logger.info('Aborted')
 
 
 def main(arguments):
@@ -49,8 +49,9 @@ def main(arguments):
         predicate = ProcessPredicate(name, [list(match.items())[0] for match in process.get('match', [])])
         process_predicates.append(predicate)
 
+        # TODO: Set up classes for the egress interface
         # Set up classes for the process traffic
-        download_rate = process['download']
+        download_rate = process.get('download')
         class_ids[name] = tc_add_class(ingress_interface, ingress_qdisc_id, ingress_root_class_id, download_rate)
 
     filtered_ports = collections.defaultdict(set)
