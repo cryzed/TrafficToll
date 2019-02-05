@@ -16,7 +16,7 @@ QDISC_ID_REGEX = r'qdisc .+? ([a-z0-9]+?):'
 CLASS_ID_REGEX = r'class .+? (?P<qdisc_id>[a-z0-9]+?):(?P<class_id>[a-z0-9]+)'
 
 # This ID seems to be fixed for the ingress QDisc
-INGRESS_QDISC_ID = 'ffff:fff1'
+INGRESS_QDISC_PARENT_ID = 'ffff:fff1'
 
 
 def _clean_up():
@@ -69,10 +69,15 @@ def _get_free_qdisc_id(interface):
 
     ids = set()
     for line in process.stdout.splitlines():
-        match = re.match(QDISC_ID_REGEX, line)
-        if match:
-            id_ = int(match.group(1), 16)
-            ids.add(id_)
+        id_string = re.match(QDISC_ID_REGEX, line).group(1)
+        try:
+            id_ = int(id_string)
+        except ValueError:
+            # This should only happen for the ingress QDisc
+            logger.warning('Failed to parse QDisc ID as base 10 integer on line: {!r}', line)
+            id_ = int(id_string, 16)
+
+        ids.add(id_)
 
     return _find_free_id(ids)
 
@@ -83,8 +88,8 @@ def _get_free_class_id(interface, qdisc_id):
     ids = set()
     for line in process.stdout.splitlines():
         match = re.match(CLASS_ID_REGEX, line).groupdict()
-        if int(match['qdisc_id'], 16) == qdisc_id:
-            ids.add(int(match['class_id'], 16))
+        if int(match['qdisc_id']) == qdisc_id:
+            ids.add(int(match['class_id']))
 
     return _find_free_id(ids)
 
@@ -113,8 +118,9 @@ def tc_setup(interface, download_rate=None, upload_rate=None):
     _run((f'tc class add dev {interface} parent {interface_qdisc_id}: classid '
           f'{interface_qdisc_id}:{interface_root_class_id} htb rate {upload_rate}'))
 
-    return (ifb_device, ifb_device_qdisc_id, ifb_root_class_id), (
-        interface, interface_qdisc_id, interface_root_class_id)
+    return (
+        (ifb_device, ifb_device_qdisc_id, ifb_root_class_id),
+        (interface, interface_qdisc_id, interface_root_class_id))
 
 
 def tc_add_class(interface, parent_qdisc_id, parent_class_id, rate):
@@ -124,7 +130,7 @@ def tc_add_class(interface, parent_qdisc_id, parent_class_id, rate):
     return class_id
 
 
-def _parse_filter_handles(interface):
+def _get_filter_ids(interface):
     process = _run(f'tc filter show dev {interface}', stdout=subprocess.PIPE, universal_newlines=True)
     handles = []
     for line in process.stdout.splitlines():
@@ -136,10 +142,10 @@ def _parse_filter_handles(interface):
 
 
 def tc_add_filter(interface, predicate, parent_qdisc_id, class_id):
-    before = set(_parse_filter_handles(interface))
+    before = set(_get_filter_ids(interface))
     _run((f'tc filter add dev {interface} protocol ip parent {parent_qdisc_id}: prio 1 u32 {predicate} flowid '
           f'{parent_qdisc_id}:{class_id}'))
-    after = set(_parse_filter_handles(interface))
+    after = set(_get_filter_ids(interface))
 
     difference = after.difference(before)
     if len(difference) > 1:

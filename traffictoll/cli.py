@@ -7,7 +7,7 @@ from loguru import logger
 from ruamel.yaml import YAML
 
 from traffictoll.net import ProcessPredicate, filter_net_connections
-from traffictoll.tc import INGRESS_QDISC_ID, tc_add_class, tc_add_filter, tc_remove_filter, tc_remove_qdisc, tc_setup
+from traffictoll.tc import INGRESS_QDISC_PARENT_ID, tc_add_class, tc_add_filter, tc_remove_filter, tc_remove_qdisc, tc_setup
 
 ENCODING = 'UTF-8'
 argument_parser = argparse.ArgumentParser()
@@ -20,7 +20,7 @@ def _clean_up(ingress_interface, egress_interface):
     logger.info('Cleaning up QDiscs')
     tc_remove_qdisc(ingress_interface)
     tc_remove_qdisc(egress_interface)
-    tc_remove_qdisc(egress_interface, INGRESS_QDISC_ID)
+    tc_remove_qdisc(egress_interface, INGRESS_QDISC_PARENT_ID)
 
 
 def cli_main():
