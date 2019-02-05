@@ -17,8 +17,8 @@ argument_parser.add_argument('--delay', '-d', type=float, default=1)
 
 
 def _clean_up(ingress_interface, egress_interface):
+    logger.info('Cleaning up QDiscs...')
     tc_remove_qdisc(ingress_interface)
-
     # TODO: Do this smarter
     tc_remove_qdisc(egress_interface, INGRESS_QDISC_ID)
 

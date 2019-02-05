@@ -37,6 +37,7 @@ class add dev {ifb_device} parent {ifb_device_qdisc_id}: classid {ifb_device_qdi
 
 
 def _clean_up():
+    logger.info('Cleaning up IFB devices...')
     command = [RMMOD_PATH, 'ifb']
     logger.debug(' '.join(command))
     subprocess.run(command)
@@ -96,7 +97,7 @@ def _get_free_qdisc_id(interface):
     for line in process.stdout.splitlines():
         match = re.match(QDISC_ID_REGEX, line)
         if match:
-            id_ = int(match.group(1))
+            id_ = int(match.group(1), 16)
             ids.add(id_)
 
     return _find_free_id(ids)
@@ -110,8 +111,8 @@ def _get_free_class_id(interface, qdisc_id):
     ids = set()
     for line in process.stdout.splitlines():
         match = re.match(CLASS_ID_REGEX, line).groupdict()
-        if int(match['qdisc_id']) == qdisc_id:
-            ids.add(int(match['class_id']))
+        if int(match['qdisc_id'], 16) == qdisc_id:
+            ids.add(int(match['class_id'], 16))
 
     return _find_free_id(ids)
 
