@@ -1,11 +1,12 @@
 import argparse
+import atexit
 import collections
 import time
 
 from loguru import logger
 from ruamel.yaml import YAML
 
-from traffictoll.tc import tc_add_class, tc_add_filter, tc_remove_filter, tc_setup
+from traffictoll.tc import INGRESS_QDISC_ID, tc_add_class, tc_add_filter, tc_remove_filter, tc_remove_qdisc, tc_setup
 from traffictoll.utils import ProcessPredicate, filter_net_connections
 
 ENCODING = 'UTF-8'
@@ -13,6 +14,13 @@ argument_parser = argparse.ArgumentParser()
 argument_parser.add_argument('device')
 argument_parser.add_argument('config')
 argument_parser.add_argument('--delay', '-d', type=float, default=1)
+
+
+def _clean_up(ingress_interface, egress_interface):
+    tc_remove_qdisc(ingress_interface)
+
+    # TODO: Do this smarter
+    tc_remove_qdisc(egress_interface, INGRESS_QDISC_ID)
 
 
 def cli_main():
@@ -28,6 +36,8 @@ def main(arguments):
     upload_rate = config.get('upload')
     ((ingress_interface, ingress_qdisc_id, ingress_root_class_id),
      (egress_interface, egress_qdisc_id, egress_root_class_id)) = tc_setup(arguments.device, download_rate, upload_rate)
+
+    atexit.register(_clean_up, ingress_interface, egress_interface)
 
     process_predicates = []
     class_ids = {}
@@ -50,7 +60,8 @@ def main(arguments):
             # Add new ports
             new_ports = ports.difference(filtered_ports[name])
             if new_ports:
-                logger.info('Filtering traffic for {!r} on local ports {}', name, ', '.join(map(str, sorted(new_ports))))
+                logger.info('Filtering traffic for {!r} on local ports {}', name,
+                            ', '.join(map(str, sorted(new_ports))))
 
             for port in new_ports:
                 match_predicate = f'match ip dport {port} 0xffff'
@@ -60,7 +71,8 @@ def main(arguments):
             # Remove old port filters
             freed_ports = filtered_ports[name].difference(ports)
             if freed_ports:
-                logger.info('Removing filters for {!r} on local ports {}', name, ', '.join(map(str, sorted(freed_ports))))
+                logger.info('Removing filters for {!r} on local ports {}', name,
+                            ', '.join(map(str, sorted(freed_ports))))
 
             for port in freed_ports:
                 filter_id = port_to_filter_id[port]

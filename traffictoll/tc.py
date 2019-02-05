@@ -1,3 +1,4 @@
+import atexit
 import os
 import re
 import shlex
@@ -12,10 +13,12 @@ ENCODING = 'UTF-8'
 MODPROBE_PATH = shutil.which('modprobe')
 IP_PATH = shutil.which('ip')
 TC_PATH = shutil.which('tc')
+RMMOD_PATH = shutil.which('rmmod')
 IFB_REGEX = r'ifb\d+'
-FILTER_ID_REGEX = 'filter .*? fh ([a-z0-9]+::[a-z0-9]+)'
-QDISC_ID_REGEX = 'qdisc .+? ([a-z0-9]+):'
-CLASS_ID_REGEX = 'class .+? (?P<qdisc_id>[a-z0-9]+):(?P<class_id>[a-z0-9]+)'
+FILTER_ID_REGEX = r'filter .*? fh ([a-z0-9]+::[a-z0-9]+?)(?:\s|$)'
+QDISC_ID_REGEX = r'qdisc .+? ([a-z0-9]+?):'
+CLASS_ID_REGEX = r'class .+? (?P<qdisc_id>[a-z0-9]+?):(?P<class_id>[a-z0-9]+)'
+INGRESS_QDISC_ID = 'ffff:fff1'
 
 # "TC store rates as a 32-bit unsigned integer in bps internally, so we can specify a max rate of 4294967295 bps"
 # (source: `$ man tc`)
@@ -31,6 +34,12 @@ filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 action mir
 qdisc add dev {ifb_device} root handle {ifb_device_qdisc_id}: htb
 class add dev {ifb_device} parent {ifb_device_qdisc_id}: classid {ifb_device_qdisc_id}:{ifb_root_class_id} htb rate {download_rate}
 '''
+
+
+def _clean_up():
+    command = [RMMOD_PATH, 'ifb']
+    logger.debug(' '.join(command))
+    subprocess.run(command)
 
 
 def _activate_interface(name):
@@ -52,6 +61,7 @@ def _create_ifb_device():
     return name
 
 
+# TODO: Also shut down interface if it was down?
 def _acquire_ifb_device():
     interfaces = psutil.net_if_stats()
     for interface_name, interface in interfaces.items():
@@ -61,6 +71,9 @@ def _acquire_ifb_device():
             _activate_interface(interface_name)
 
         return interface_name
+
+    # Clean up IFB devices if they were created
+    atexit.register(_clean_up)
     return _create_ifb_device()
 
 
@@ -170,5 +183,11 @@ def tc_add_filter(interface, predicate, parent_qdisc_id, class_id):
 def tc_remove_filter(interface, filter_id, parent_qdisc_id):
     command = [TC_PATH, 'filter', 'del', 'dev', interface, 'parent', f'{parent_qdisc_id}:', 'handle', filter_id, 'prio',
                '1', 'protocol', 'ip', 'u32']
+    logger.debug(' '.join(command))
+    subprocess.run(command)
+
+
+def tc_remove_qdisc(interface, parent='root'):
+    command = [TC_PATH, 'qdisc', 'del', 'dev', interface, 'parent', parent]
     logger.debug(' '.join(command))
     subprocess.run(command)
