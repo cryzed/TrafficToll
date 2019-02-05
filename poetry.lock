@@ -1,0 +1,81 @@
+[[package]]
+category = "main"
+description = "Produce colored terminal text with an xml-like markup"
+name = "ansimarkup"
+optional = false
+python-versions = "*"
+version = "1.4.0"
+
+[package.dependencies]
+colorama = "*"
+
+[[package]]
+category = "main"
+description = "Pretty and helpful exceptions, automatically"
+name = "better-exceptions-fork"
+optional = false
+python-versions = "*"
+version = "0.2.1.post6"
+
+[package.dependencies]
+ansimarkup = ">=1.3.0"
+colorama = "*"
+pygments = ">=2.2.0"
+
+[[package]]
+category = "main"
+description = "Cross-platform colored terminal text."
+name = "colorama"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+version = "0.4.1"
+
+[[package]]
+category = "main"
+description = "Python logging made (stupidly) simple"
+name = "loguru"
+optional = false
+python-versions = ">=3.5"
+version = "0.2.5"
+
+[package.dependencies]
+ansimarkup = ">=1.4.0"
+better-exceptions-fork = ">=0.2.1.post6"
+colorama = ">=0.3.4"
+
+[[package]]
+category = "main"
+description = "Cross-platform lib for process and system monitoring in Python."
+name = "psutil"
+optional = false
+python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+version = "5.5.0"
+
+[[package]]
+category = "main"
+description = "Pygments is a syntax highlighting package written in Python."
+name = "pygments"
+optional = false
+python-versions = "*"
+version = "2.3.1"
+
+[[package]]
+category = "main"
+description = "ruamel.yaml is a YAML parser/emitter that supports roundtrip preservation of comments, seq/map flow style, and map key order"
+name = "ruamel.yaml"
+optional = false
+python-versions = "*"
+version = "0.15.87"
+
+[metadata]
+content-hash = "597e4492cf5078bae3fa96f99353953e365f57cbbb0b05c5060096f2e1c4e1fe"
+python-versions = "^3.7"
+
+[metadata.hashes]
+ansimarkup = ["06365e3ef89a12734fc408b2449cb4642d5fe2e603e95e7296eff9e98a0fe0b4", "174d920481416cec8d5a707af542d6fba25a1df1c21d8996479c32ba453649a4"]
+better-exceptions-fork = ["5f0983da51e956dbdaf8b9a3d10e2774b382ce6c6ff2e54685c33e2dbe8f1472"]
+colorama = ["05eed71e2e327246ad6b38c540c4a3117230b19679b875190486ddd2d721422d", "f8ac84de7840f5b9c4e3347b3c1eaa50f7e49c2b07596221daec5edaabbd7c48"]
+loguru = ["68297d9f23064c2f4764bb5d0c5c767f3ed7f9fc1218244841878f5fc7c94add", "ebac59630946721fd6207264679b267a8bdc290b086226067d6aad86830e3123"]
+psutil = ["04d2071100aaad59f9bcbb801be2125d53b2e03b1517d9fed90b45eea51d297e", "1aba93430050270750d046a179c5f3d6e1f5f8b96c20399ba38c596b28fc4d37", "3ac48568f5b85fee44cd8002a15a7733deca056a191d313dbf24c11519c0c4a8", "96f3fdb4ef7467854d46ad5a7e28eb4c6dc6d455d751ddf9640cd6d52bdb03d7", "b755be689d6fc8ebc401e1d5ce5bac867e35788f10229e166338484eead51b12", "c8ee08ad1b716911c86f12dc753eb1879006224fd51509f077987bb6493be615", "d0c4230d60376aee0757d934020b14899f6020cd70ef8d2cb4f228b6ffc43e8f", "d23f7025bac9b3e38adc6bd032cdaac648ac0074d18e36950a04af35458342e8", "f0fcb7d3006dd4d9ccf3ccd0595d44c6abbfd433ec31b6ca177300ee3f19e54e"]
+pygments = ["5ffada19f6203563680669ee7f53b64dabbeb100eb51b61996085e99c03b284a", "e8218dd399a61674745138520d0d4cf2621d7e032439341bc3f647bff125818d"]
+"ruamel.yaml" = ["18078354bfcf00d51bcc17984aded80840379aed36036f078479e191b59bc059", "211e6ef2530f44fc3197c713892678e7fbfbc40a1db6741179d6981514be1674", "2e8f7cee12a2372cec4480fe81086b1fdab163f4b56e58b5592a105c52973b78", "48cc8e948a7ec4917bf94adff2cc1255e98f1eef5e1961889886acc4ff3a7194", "4a0c7f970aa0e30bc541f690fbd14aca19de1cab70787180de5083b902ec40b5", "5dd0ea7c5c703e8675f3caf2898a50b4dadaa52838f8e104637a452a05e03030", "612fb4833f1978ceb7fd7a24d86a5ebd103bcc408394f3af621293194658cf1b", "61c421a7a2b8e2886a94fbe29866df6b99451998abaa1584b9fdc9c10c33e40b", "6483416847980aa7090b697d177a8754c4f340683cc84abd38da7b850826687d", "6622f3b0cae7ed6fe5d3d6a6d8d8cb9413a05b408d69a789a57b77a616bb6562", "80b2acde0d1b9d25e5c041960a9149480c15c6d9f4c24b8ddb381b14e9e70ea4", "8f9ed94be17f306485df8fd0274a30f130a73f127798657d4dc65b1f89ec7a36", "9a6b94cc9b6e738036426498ac9fe8ca05afea4249fb9dec1be32ce4823d5756", "a4b11dfe421a9836c723107a4ccc9cab9674de611ba60b8212e85526ea8bf254", "a55e55c6ecb5725ba472f9b811940e8d258a32fb36f5793dbc38582d6f377f3f", "a736ab1d8c2d5566254a1a2ee38e7c5460520bcccd4a8f0feb25a4463735e5a7", "c29d0a3cffa5a25f5259bfeac06ffdc5e7d1fd38a0a26a6664d160192730434f", "c33458217a8c352b59c86065c4f05f3f1ac28b01c3e1a422845c306237446bf3", "cc9bd3c3fa8a928f7b6e19fe8de13a61deb91f257eccbe0d16114ce8c54cdc81", "d63b7c828a7358ce5b03a3e2c2a3e5a7058a954f8919334cb09b3d8541d1fff6", "fbd301680a3563e84d667042dac1c5d50ef402ecf1f4b1763507a6877b8181ad", "fc67e79e2f5083be6fd1000c4646e13a891585772a503f56f51f845b547fe621"]

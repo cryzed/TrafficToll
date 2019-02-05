@@ -1,0 +1,5 @@
+processes:
+  Vivaldi:
+    download: 800kbit # 100kb/s
+    match:
+      - exe: /opt/vivaldi/vivaldi-bin
