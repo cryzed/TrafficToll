@@ -7,9 +7,10 @@ from loguru import logger
 from ruamel.yaml import YAML
 
 from traffictoll.net import ProcessPredicate, filter_net_connections
-from traffictoll.tc import INGRESS_QDISC_PARENT_ID, tc_add_class, tc_add_filter, tc_remove_filter, tc_remove_qdisc, tc_setup
+from traffictoll.tc import INGRESS_QDISC_PARENT_ID, tc_add_class, tc_add_filter, tc_remove_filter, tc_remove_qdisc, \
+    tc_setup
 
-ENCODING = 'UTF-8'
+CONFIG_ENCODING = 'UTF-8'
 argument_parser = argparse.ArgumentParser()
 argument_parser.add_argument('device')
 argument_parser.add_argument('config')
@@ -33,7 +34,7 @@ def cli_main():
 
 
 def main(arguments):
-    with open(arguments.config, 'r', encoding=ENCODING) as file:
+    with open(arguments.config, 'r', encoding=CONFIG_ENCODING) as file:
         config = YAML().load(file)
 
     download_rate = config.get('download')
