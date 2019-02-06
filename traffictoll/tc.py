@@ -111,10 +111,10 @@ def tc_setup(interface, download_rate=None, upload_rate=None):
     run((f'tc filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 action mirred egress'
          f' redirect dev {ifb_device}'))
 
-    ifb_device_qdisc_id = _get_free_qdisc_id(interface)
+    ifb_device_qdisc_id = _get_free_qdisc_id(ifb_device)
     run(f'tc qdisc add dev {ifb_device} root handle {ifb_device_qdisc_id}: htb')
 
-    ifb_root_class_id = _get_free_class_id(interface, ifb_device_qdisc_id)
+    ifb_root_class_id = _get_free_class_id(ifb_device, ifb_device_qdisc_id)
     run((f'tc class add dev {ifb_device} parent {ifb_device_qdisc_id}: classid '
          f'{ifb_device_qdisc_id}:{ifb_root_class_id} htb rate {download_rate}'))
 
