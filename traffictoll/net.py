@@ -5,7 +5,7 @@ import re
 import psutil
 from loguru import logger
 
-ProcessPredicate = collections.namedtuple('ProcessPredicate', ['name', 'predicates'])
+ProcessFilterPredicate = collections.namedtuple('ProcessFilterPredicate', ['name', 'conditions'])
 
 
 def _match_process(process, predicate):
@@ -32,7 +32,7 @@ def filter_net_connections(predicates):
             logger.warning('Process with PID {} died while filtering network connections', connection.pid)
             continue
 
-        if all(_match_process(process, predicate) for predicate in predicate.predicates):
+        if all(_match_process(process, condition) for condition in predicate.conditions):
             filtered[predicate.name].append(connection)
 
     return filtered

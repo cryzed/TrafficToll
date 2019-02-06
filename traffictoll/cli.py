@@ -6,7 +6,7 @@ import time
 from loguru import logger
 from ruamel.yaml import YAML
 
-from traffictoll.net import ProcessPredicate, filter_net_connections
+from traffictoll.net import ProcessFilterPredicate, filter_net_connections
 from traffictoll.tc import INGRESS_QDISC_PARENT_ID, tc_add_class, tc_add_filter, tc_remove_filter, tc_remove_qdisc, \
     tc_setup
 
@@ -44,58 +44,81 @@ def main(arguments):
 
     atexit.register(_clean_up, ingress_interface, egress_interface)
 
-    process_predicates = []
-    class_ids = {}
+    process_filter_predicates = []
+    class_ids = {'ingress': {}, 'egress': {}}
     for name, process in config['processes'].items():
-        predicate = ProcessPredicate(name, [list(match.items())[0] for match in process.get('match', [])])
-        process_predicates.append(predicate)
+        # Prepare process filter predicates to match network connections
+        conditions = [list(match.items())[0] for match in process.get('match', [])]
+        predicate = ProcessFilterPredicate(name, conditions)
+        process_filter_predicates.append(predicate)
 
-        # TODO: Set up classes for the egress interface
-        # Set up classes for the process traffic
+        # Set up classes for download/upload limiting
         download_rate = process.get('download')
-        class_ids[name] = tc_add_class(ingress_interface, ingress_qdisc_id, ingress_root_class_id, download_rate)
+        upload_rate = process.get('upload')
+        if download_rate:
+            egress_class_id = tc_add_class(ingress_interface, ingress_qdisc_id, ingress_root_class_id, download_rate)
+            class_ids['ingress'][name] = egress_class_id
+        if upload_rate:
+            ingress_class_id = tc_add_class(egress_interface, egress_qdisc_id, egress_root_class_id, upload_rate)
+            class_ids['egress'][name] = ingress_class_id
+
+    port_to_filter_id = {'ingress': {}, 'egress': {}}
+
+    def add_ingress_filter(port):
+        filter_id = tc_add_filter(ingress_interface, f'match ip dport {port} 0xffff', ingress_qdisc_id,
+                                  ingress_class_id)
+        port_to_filter_id['ingress'][port] = filter_id
+
+    def add_egress_filter(port):
+        filter_id = tc_add_filter(egress_interface, f'match ip sport {port} 0xffff', egress_qdisc_id, egress_class_id)
+        port_to_filter_id['egress'][port] = filter_id
+
+    def remove_filters(port):
+        ingress_filter_id = port_to_filter_id['ingress'][port]
+        if ingress_filter_id:
+            tc_remove_filter(ingress_interface, ingress_filter_id, ingress_qdisc_id)
+            del port_to_filter_id['ingress'][port]
+
+        egress_filter_id = port_to_filter_id['egress'][port]
+        if egress_filter_id:
+            tc_remove_filter(egress_interface, egress_filter_id, egress_qdisc_id)
+            del port_to_filter_id['egress'][port]
 
     filtered_ports = collections.defaultdict(set)
-    port_to_filter_id = {}
     while True:
-        filtered_connections = filter_net_connections(process_predicates)
+        filtered_connections = filter_net_connections(process_filter_predicates)
         for name, connections in filtered_connections.items():
-            class_id = class_ids[name]
             ports = set(connection.laddr.port for connection in connections)
+            ingress_class_id = class_ids['ingress'].get(name)
+            egress_class_id = class_ids['egress'].get(name)
 
-            # Add new ports
-            new_ports = ports.difference(filtered_ports[name])
+            # Add new port filters
+            new_ports = sorted(ports.difference(filtered_ports[name]))
             if new_ports:
-                logger.info('Filtering traffic for {!r} on local ports {}', name,
-                            ', '.join(map(str, sorted(new_ports))))
-
-            for port in new_ports:
-                match_predicate = f'match ip dport {port} 0xffff'
-                filter_id = tc_add_filter(ingress_interface, match_predicate, ingress_qdisc_id, class_id)
-                port_to_filter_id[port] = filter_id
+                logger.info('Filtering traffic for {!r} on local ports {}', name, ', '.join(map(str, new_ports)))
+                for port in new_ports:
+                    if ingress_class_id:
+                        add_ingress_filter(port)
+                    if egress_class_id:
+                        add_egress_filter(port)
 
             # Remove old port filters
-            freed_ports = filtered_ports[name].difference(ports)
+            freed_ports = sorted(filtered_ports[name].difference(ports))
             if freed_ports:
-                logger.info('Removing filters for {!r} on local ports {}', name,
-                            ', '.join(map(str, sorted(freed_ports))))
-
-            for port in freed_ports:
-                filter_id = port_to_filter_id[port]
-                tc_remove_filter(ingress_interface, filter_id, ingress_qdisc_id)
-                del port_to_filter_id[port]
+                logger.info('Removing filters for {!r} on local ports {}', name, ', '.join(map(str, freed_ports)))
+                for port in freed_ports:
+                    logger.info('Removing filters for {!r} on local port {}', name, port)
+                    remove_filters(port)
 
             filtered_ports[name] = ports
 
-        # Remove freed ports for dead processes
+        # Remove freed ports for unmatched processes (process died or predicate conditions stopped matching)
         for name in set(filtered_ports).difference(filtered_connections):
-            freed_ports = filtered_ports[name]
-            logger.info('Removing filters for {!r} on local ports {}', name, ', '.join(map(str, sorted(freed_ports))))
-            for port in freed_ports:
-                filter_id = port_to_filter_id[port]
-                tc_remove_filter(ingress_interface, filter_id, ingress_qdisc_id)
-                del port_to_filter_id[port]
-
+            freed_ports = sorted(filtered_ports[name])
+            if freed_ports:
+                logger.info('Removing filters for {!r} on local ports {}', name, ', '.join(map(str, freed_ports)))
+                for port in freed_ports:
+                    remove_filters(port)
             del filtered_ports[name]
 
         time.sleep(arguments.delay)
