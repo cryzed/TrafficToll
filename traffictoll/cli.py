@@ -64,13 +64,12 @@ def main(arguments):
 
     port_to_filter_id = {'ingress': {}, 'egress': {}}
 
-    def add_ingress_filter(port):
-        filter_id = tc_add_filter(ingress_interface, f'match ip dport {port} 0xffff', ingress_qdisc_id,
-                                  ingress_class_id)
+    def add_ingress_filter(port, class_id):
+        filter_id = tc_add_filter(ingress_interface, f'match ip dport {port} 0xffff', ingress_qdisc_id, class_id)
         port_to_filter_id['ingress'][port] = filter_id
 
-    def add_egress_filter(port):
-        filter_id = tc_add_filter(egress_interface, f'match ip sport {port} 0xffff', egress_qdisc_id, egress_class_id)
+    def add_egress_filter(port, class_id):
+        filter_id = tc_add_filter(egress_interface, f'match ip sport {port} 0xffff', egress_qdisc_id, class_id)
         port_to_filter_id['egress'][port] = filter_id
 
     def remove_filters(port):
@@ -98,9 +97,9 @@ def main(arguments):
                 logger.info('Filtering traffic for {!r} on local ports {}', name, ', '.join(map(str, new_ports)))
                 for port in new_ports:
                     if ingress_class_id:
-                        add_ingress_filter(port)
+                        add_ingress_filter(port, ingress_class_id)
                     if egress_class_id:
-                        add_egress_filter(port)
+                        add_egress_filter(port, egress_class_id)
 
             # Remove old port filters
             freed_ports = sorted(filtered_ports[name].difference(ports))
