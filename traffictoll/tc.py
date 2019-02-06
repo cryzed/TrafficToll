@@ -5,7 +5,7 @@ import subprocess
 import psutil
 from loguru import logger
 
-from traffictoll.utils import _run
+from traffictoll.utils import run
 
 # "TC store rates as a 32-bit unsigned integer in bps internally, so we can specify a max rate of 4294967295 bps"
 # (source: `$ man tc`)
@@ -22,18 +22,18 @@ INGRESS_QDISC_PARENT_ID = 'ffff:fff1'
 def _clean_up(remove_ifb_device=False, shutdown_ifb_device=None):
     logger.info('Cleaning up IFB device')
     if remove_ifb_device:
-        _run('rmmod ifb')
+        run('rmmod ifb')
     if shutdown_ifb_device:
-        _run(f'ip link set dev {shutdown_ifb_device} down')
+        run(f'ip link set dev {shutdown_ifb_device} down')
 
 
 def _activate_interface(name):
-    _run(f'ip link set dev {name} up')
+    run(f'ip link set dev {name} up')
 
 
 def _create_ifb_device():
     before = set(psutil.net_if_stats())
-    _run('modprobe ifb numifbs=1')
+    run('modprobe ifb numifbs=1')
     after = set(psutil.net_if_stats())
 
     # It doesn't matter if the created IFB device is ambiguous, any will do
@@ -72,7 +72,7 @@ def _find_free_id(ids):
 
 
 def _get_free_qdisc_id(interface):
-    process = _run(f'tc qdisc show dev {interface}', stdout=subprocess.PIPE, universal_newlines=True)
+    process = run(f'tc qdisc show dev {interface}', stdout=subprocess.PIPE, universal_newlines=True)
 
     ids = set()
     for line in process.stdout.splitlines():
@@ -90,7 +90,7 @@ def _get_free_qdisc_id(interface):
 
 
 def _get_free_class_id(interface, qdisc_id):
-    process = _run(f'tc class show dev {interface}', stdout=subprocess.PIPE, universal_newlines=True)
+    process = run(f'tc class show dev {interface}', stdout=subprocess.PIPE, universal_newlines=True)
 
     ids = set()
     for line in process.stdout.splitlines():
@@ -105,25 +105,25 @@ def tc_setup(interface, download_rate=None, upload_rate=None):
     download_rate = download_rate or MAX_RATE
     upload_rate = upload_rate or MAX_RATE
 
-    _run(f'tc qdisc add dev {interface} handle ffff: ingress')
+    run(f'tc qdisc add dev {interface} handle ffff: ingress')
 
     ifb_device = _acquire_ifb_device()
-    _run((f'tc filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 action mirred egress'
-          f' redirect dev {ifb_device}'))
+    run((f'tc filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 action mirred egress'
+         f' redirect dev {ifb_device}'))
 
     ifb_device_qdisc_id = _get_free_qdisc_id(interface)
-    _run(f'tc qdisc add dev {ifb_device} root handle {ifb_device_qdisc_id}: htb')
+    run(f'tc qdisc add dev {ifb_device} root handle {ifb_device_qdisc_id}: htb')
 
     ifb_root_class_id = _get_free_class_id(interface, ifb_device_qdisc_id)
-    _run((f'tc class add dev {ifb_device} parent {ifb_device_qdisc_id}: classid '
-          f'{ifb_device_qdisc_id}:{ifb_root_class_id} htb rate {download_rate}'))
+    run((f'tc class add dev {ifb_device} parent {ifb_device_qdisc_id}: classid '
+         f'{ifb_device_qdisc_id}:{ifb_root_class_id} htb rate {download_rate}'))
 
     interface_qdisc_id = _get_free_qdisc_id(interface)
-    _run(f'tc qdisc add dev {interface} root handle {interface_qdisc_id}: htb')
+    run(f'tc qdisc add dev {interface} root handle {interface_qdisc_id}: htb')
 
     interface_root_class_id = _get_free_class_id(interface, interface_qdisc_id)
-    _run((f'tc class add dev {interface} parent {interface_qdisc_id}: classid '
-          f'{interface_qdisc_id}:{interface_root_class_id} htb rate {upload_rate}'))
+    run((f'tc class add dev {interface} parent {interface_qdisc_id}: classid '
+         f'{interface_qdisc_id}:{interface_root_class_id} htb rate {upload_rate}'))
 
     return (
         (ifb_device, ifb_device_qdisc_id, ifb_root_class_id),
@@ -132,13 +132,13 @@ def tc_setup(interface, download_rate=None, upload_rate=None):
 
 def tc_add_class(interface, parent_qdisc_id, parent_class_id, rate):
     class_id = _get_free_class_id(interface, parent_qdisc_id)
-    _run((f'tc class add dev {interface} parent {parent_qdisc_id}:{parent_class_id} classid '
-          f'{parent_qdisc_id}:{class_id} htb rate {rate}'))
+    run((f'tc class add dev {interface} parent {parent_qdisc_id}:{parent_class_id} classid '
+         f'{parent_qdisc_id}:{class_id} htb rate {rate}'))
     return class_id
 
 
 def _get_filter_ids(interface):
-    process = _run(f'tc filter show dev {interface}', stdout=subprocess.PIPE, universal_newlines=True)
+    process = run(f'tc filter show dev {interface}', stdout=subprocess.PIPE, universal_newlines=True)
     ids = set()
     for line in process.stdout.splitlines():
         match = re.match(FILTER_ID_REGEX, line)
@@ -150,8 +150,8 @@ def _get_filter_ids(interface):
 
 def tc_add_filter(interface, predicate, parent_qdisc_id, class_id):
     before = _get_filter_ids(interface)
-    _run((f'tc filter add dev {interface} protocol ip parent {parent_qdisc_id}: prio 1 u32 {predicate} flowid '
-          f'{parent_qdisc_id}:{class_id}'))
+    run((f'tc filter add dev {interface} protocol ip parent {parent_qdisc_id}: prio 1 u32 {predicate} flowid '
+         f'{parent_qdisc_id}:{class_id}'))
     after = _get_filter_ids(interface)
 
     difference = after.difference(before)
@@ -161,8 +161,8 @@ def tc_add_filter(interface, predicate, parent_qdisc_id, class_id):
 
 
 def tc_remove_filter(interface, filter_id, parent_qdisc_id):
-    _run(f'tc filter del dev {interface} parent {parent_qdisc_id}: handle {filter_id} prio 1 protocol ip u32')
+    run(f'tc filter del dev {interface} parent {parent_qdisc_id}: handle {filter_id} prio 1 protocol ip u32')
 
 
 def tc_remove_qdisc(interface, parent='root'):
-    _run(f'tc qdisc del dev {interface} parent {parent}')
+    run(f'tc qdisc del dev {interface} parent {parent}')

@@ -14,7 +14,7 @@ def _which(binary):
 
 # This is fine because we aren't dealing with any values in the commands that have to be quoted; on the off-chance that
 # they have to, there's shlex.quote
-def _run(command, **kwargs):
+def run(command, **kwargs):
     executable, *args = shlex.split(command)
     executable_path = _which(executable)
 
