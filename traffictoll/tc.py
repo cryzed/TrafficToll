@@ -105,35 +105,47 @@ def tc_setup(interface, download_rate=None, upload_rate=None):
     download_rate = download_rate or MAX_RATE
     upload_rate = upload_rate or MAX_RATE
 
+    # Set up IFB device
     run(f'tc qdisc add dev {interface} handle ffff: ingress')
-
     ifb_device = _acquire_ifb_device()
-    run((f'tc filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 action mirred egress'
-         f' redirect dev {ifb_device}'))
+    run((f'tc filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 action mirred egress '
+         f'redirect dev {ifb_device}'))
 
+    # Create IFB device QDisc and root class limited at download_rate
     ifb_device_qdisc_id = _get_free_qdisc_id(ifb_device)
     run(f'tc qdisc add dev {ifb_device} root handle {ifb_device_qdisc_id}: htb')
-
-    ifb_root_class_id = _get_free_class_id(ifb_device, ifb_device_qdisc_id)
+    ifb_device_root_class_id = _get_free_class_id(ifb_device, ifb_device_qdisc_id)
     run((f'tc class add dev {ifb_device} parent {ifb_device_qdisc_id}: classid '
-         f'{ifb_device_qdisc_id}:{ifb_root_class_id} htb rate {download_rate}'))
+         f'{ifb_device_qdisc_id}:{ifb_device_root_class_id} htb rate {download_rate}'))
 
+    # Create default class that all traffic is routed through that doesn't match any other filter
+    ifb_default_class_id = tc_add_htb_class(ifb_device, ifb_device_qdisc_id, ifb_device_root_class_id, download_rate)
+    run((f'tc filter add dev {ifb_device} parent {ifb_device_qdisc_id}: prio 2 matchall flowid '
+         f'{ifb_device_qdisc_id}:{ifb_default_class_id}'))
+
+    # Create interface QDisc and class
     interface_qdisc_id = _get_free_qdisc_id(interface)
     run(f'tc qdisc add dev {interface} root handle {interface_qdisc_id}: htb')
-
     interface_root_class_id = _get_free_class_id(interface, interface_qdisc_id)
     run((f'tc class add dev {interface} parent {interface_qdisc_id}: classid '
          f'{interface_qdisc_id}:{interface_root_class_id} htb rate {upload_rate}'))
 
+    # Create default class that all traffic is routed through that doesn't match any other filter
+    interface_default_class_id = tc_add_htb_class(interface, interface_qdisc_id, interface_root_class_id, upload_rate)
+    run((f'tc filter add dev {interface} parent {interface_qdisc_id}: prio 2 matchall flowid '
+         f'{interface_qdisc_id}:{interface_default_class_id}'))
+
     return (
-        (ifb_device, ifb_device_qdisc_id, ifb_root_class_id),
+        (ifb_device, ifb_device_qdisc_id, ifb_device_root_class_id),
         (interface, interface_qdisc_id, interface_root_class_id))
 
 
-def tc_add_class(interface, parent_qdisc_id, parent_class_id, rate):
+def tc_add_htb_class(interface, parent_qdisc_id, parent_class_id, rate):
     class_id = _get_free_class_id(interface, parent_qdisc_id)
+    # rate of 1byte/s is the lowest we can specify. All classes added this way should only be allowed to borrow from the
+    # parent class, otherwise it's possible to specify a rate higher than the global rate
     run((f'tc class add dev {interface} parent {parent_qdisc_id}:{parent_class_id} classid '
-         f'{parent_qdisc_id}:{class_id} htb rate {rate}'))
+         f'{parent_qdisc_id}:{class_id} htb rate 8 ceil {rate}'))
     return class_id
 
 
@@ -148,7 +160,7 @@ def _get_filter_ids(interface):
     return ids
 
 
-def tc_add_filter(interface, predicate, parent_qdisc_id, class_id):
+def tc_add_u32_filter(interface, predicate, parent_qdisc_id, class_id):
     before = _get_filter_ids(interface)
     run((f'tc filter add dev {interface} protocol ip parent {parent_qdisc_id}: prio 1 u32 {predicate} flowid '
          f'{parent_qdisc_id}:{class_id}'))
@@ -160,7 +172,7 @@ def tc_add_filter(interface, predicate, parent_qdisc_id, class_id):
     return difference.pop()
 
 
-def tc_remove_filter(interface, filter_id, parent_qdisc_id):
+def tc_remove_u32_filter(interface, filter_id, parent_qdisc_id):
     run(f'tc filter del dev {interface} parent {parent_qdisc_id}: handle {filter_id} prio 1 protocol ip u32')
 
 

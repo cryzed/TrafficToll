@@ -20,10 +20,11 @@ def _match_process(process, predicate):
 
 
 def filter_net_connections(predicates):
-    connections = psutil.net_connections()
     filtered = collections.defaultdict(list)
+    connections = psutil.net_connections()
     for connection, predicate in itertools.product(connections, predicates):
-        if not connection.pid:
+        # Stop no specified conditions from matching every process
+        if not (predicate.conditions and connection.pid):
             continue
 
         try:
