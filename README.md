@@ -72,6 +72,7 @@ and apply new limits.
 
 # Installation
 `$ pip install https://github.com/cryzed/TrafficToll/archive/master.zip`
+
 `tt` has to be run as root.
 
 # Screenshots
