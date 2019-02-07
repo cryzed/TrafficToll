@@ -1,5 +1,32 @@
+# Global limits
+download: 500kbps
+upload: 100kbps
+
+# Matched process limits
 processes:
   Vivaldi:
-    download: 800kbit # 100kb/s
+    download: 100kbps
     match:
       - exe: /opt/vivaldi/vivaldi-bin
+
+  wget:
+    download: 300kbps
+    match:
+      - exe: /usr/bin/wget
+
+  Discord:
+    download: 300kbps
+
+    # This won't work, the specified upload exceeds the global upload, it will
+    # be 100kb/s max
+    upload: 200kbps
+    match:
+      - exe: /opt/discord/Discord
+
+  JDownloader 2:
+    # JDownloader 2 obviously has its own traffic shaping, this is just here as
+    # an example to show that matching on something else than the executable's
+    # path is possible
+    download: 300kbps
+    match:
+      - cmdline: .* JDownloader.jar
