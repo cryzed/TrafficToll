@@ -108,8 +108,7 @@ def tc_setup(interface, download_rate=None, upload_rate=None):
     # Set up IFB device
     run(f'tc qdisc add dev {interface} handle ffff: ingress')
     ifb_device = _acquire_ifb_device()
-    run((f'tc filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 action mirred egress '
-         f'redirect dev {ifb_device}'))
+    run(f'tc filter add dev {interface} parent ffff: matchall action mirred egress redirect dev {ifb_device}')
 
     # Create IFB device QDisc and root class limited at download_rate
     ifb_device_qdisc_id = _get_free_qdisc_id(ifb_device)
