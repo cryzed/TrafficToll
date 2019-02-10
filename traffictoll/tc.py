@@ -42,7 +42,6 @@ def _create_ifb_device():
     return name
 
 
-# TODO: Also shut down interface if it was down?
 def _acquire_ifb_device():
     interfaces = psutil.net_if_stats()
     for interface_name, interface in interfaces.items():
@@ -122,7 +121,7 @@ def tc_setup(interface, download_rate=None, upload_rate=None):
     run((f'tc filter add dev {ifb_device} parent {ifb_device_qdisc_id}: prio 2 matchall flowid '
          f'{ifb_device_qdisc_id}:{ifb_default_class_id}'))
 
-    # Create interface QDisc and class
+    # Create interface QDisc and root class limited at upload_rate
     interface_qdisc_id = _get_free_qdisc_id(interface)
     run(f'tc qdisc add dev {interface} root handle {interface_qdisc_id}: htb')
     interface_root_class_id = _get_free_class_id(interface, interface_qdisc_id)
