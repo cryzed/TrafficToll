@@ -81,7 +81,7 @@ def _get_free_qdisc_id(interface):
             id_ = int(id_string)
         except ValueError:
             # This should only happen for the ingress QDisc
-            logger.warning('Failed to parse QDisc ID as base 10 integer on line: {!r}', line)
+            logger.debug('Failed to parse QDisc ID as base 10 integer on line: {!r}', line)
             id_ = int(id_string, 16)
 
         ids.add(id_)
