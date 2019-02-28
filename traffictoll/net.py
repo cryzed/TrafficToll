@@ -29,11 +29,10 @@ def filter_net_connections(predicates):
 
         try:
             process = psutil.Process(connection.pid)
+            if all(_match_process(process, condition) for condition in predicate.conditions):
+                filtered[predicate.name].append(connection)
         except psutil.NoSuchProcess:
             logger.warning('Process with PID {} died while filtering network connections', connection.pid)
             continue
-
-        if all(_match_process(process, condition) for condition in predicate.conditions):
-            filtered[predicate.name].append(connection)
 
     return filtered
