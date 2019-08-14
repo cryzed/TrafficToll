@@ -107,7 +107,8 @@ def tc_setup(interface, download_rate=None, upload_rate=None):
     # Set up IFB device
     run(f'tc qdisc add dev {interface} handle ffff: ingress')
     ifb_device = _acquire_ifb_device()
-    run(f'tc filter add dev {interface} parent ffff: matchall action mirred egress redirect dev {ifb_device}')
+    run((f'tc filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 action mirred egress '
+         f'redirect dev {ifb_device}'))
 
     # Create IFB device QDisc and root class limited at download_rate
     ifb_device_qdisc_id = _get_free_qdisc_id(ifb_device)
@@ -118,7 +119,7 @@ def tc_setup(interface, download_rate=None, upload_rate=None):
 
     # Create default class that all traffic is routed through that doesn't match any other filter
     ifb_default_class_id = tc_add_htb_class(ifb_device, ifb_device_qdisc_id, ifb_device_root_class_id, download_rate)
-    run((f'tc filter add dev {ifb_device} parent {ifb_device_qdisc_id}: prio 2 matchall flowid '
+    run((f'tc filter add dev {ifb_device} parent {ifb_device_qdisc_id}: prio 2 protocol ip u32 match u32 0 0 flowid '
          f'{ifb_device_qdisc_id}:{ifb_default_class_id}'))
 
     # Create interface QDisc and root class limited at upload_rate
@@ -130,7 +131,7 @@ def tc_setup(interface, download_rate=None, upload_rate=None):
 
     # Create default class that all traffic is routed through that doesn't match any other filter
     interface_default_class_id = tc_add_htb_class(interface, interface_qdisc_id, interface_root_class_id, upload_rate)
-    run((f'tc filter add dev {interface} parent {interface_qdisc_id}: prio 2 matchall flowid '
+    run((f'tc filter add dev {interface} parent {interface_qdisc_id}: prio 2 protocol ip u32 match u32 0 0 flowid '
          f'{interface_qdisc_id}:{interface_default_class_id}'))
 
     return (
