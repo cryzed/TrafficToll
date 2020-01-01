@@ -16,7 +16,7 @@ argument_parser = argparse.ArgumentParser()
 argument_parser.add_argument('device')
 argument_parser.add_argument('config')
 argument_parser.add_argument('--delay', '-d', type=float, default=1)
-argument_parser.add_argument('--logging-level', '-l', choices=logger._levels, default='INFO')
+argument_parser.add_argument('--logging-level', '-l', choices=logger._core.levels, default='INFO')
 
 
 def _clean_up(ingress_interface, egress_interface):
