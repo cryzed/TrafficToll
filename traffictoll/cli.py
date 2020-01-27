@@ -170,7 +170,8 @@ def main(arguments):
 
             filtered_ports[name] = ports
 
-        # Remove freed ports for unmatched processes (process died or predicate conditions stopped matching)
+        # Remove freed ports for unmatched processes (process died or predicate
+        # conditions stopped matching)
         for name in set(filtered_ports).difference(filtered_connections):
             freed_ports = sorted(filtered_ports[name])
             if freed_ports:
