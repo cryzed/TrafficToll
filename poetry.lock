@@ -154,7 +154,7 @@ version = "1.0.1"
 dev = ["pytest (>=4.6.2)", "black (>=19.3b0)"]
 
 [metadata]
-content-hash = "d28025a913505f41a35205479876a0d0b860e5b40de0300a4f468f3b7a402459"
+content-hash = "1f9656f3d16c26e13058a1b5ef8f9757549ec15dd86d9717e51e24ba11fc3817"
 python-versions = "^3.7"
 
 [metadata.files]

@@ -71,7 +71,7 @@ scheduling will be reverted, allowing you to easily update the config
 and apply new limits.
 
 # Installation
-`$ pip install https://github.com/cryzed/TrafficToll/archive/master.zip`
+`$ pip install traffictoll`
 
 `tt` has to be run as root.
 

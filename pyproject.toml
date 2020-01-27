@@ -1,13 +1,19 @@
 [tool.poetry]
 name = "TrafficToll"
-version = "0.1.0"
-description = ""
+version = "1.0.0"
+description = "NetLimiter-like traffic shaping for Linux"
 authors = ["cryzed <cryzed@googlemail.com>"]
+
+license='GPLv3'
+readme='README.md'
+homepage='https://github.com/cryzed/TrafficToll'
+repository='https://github.com/cryzed/TrafficToll'
+keywords=['traffic', 'traffic control', 'tc', 'netlimiter']
+include=['LICENSE']
 
 [tool.poetry.dependencies]
 python = "^3.7"
 psutil = "^5.6.7"
-"ruamel.yaml" = "^0.16.5"
 loguru = "^0.4.1"
 "ruamel.yamL" = "^0.16.6"
 
