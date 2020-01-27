@@ -22,9 +22,8 @@ half second for change in networked processes)
 * `# tt tun0 day.yaml --logging-level DEBUG` (VPN interface, adjust
 logging level to DEBUG)
 
-Currently TrafficToll works based on a YAML configuration file, but an
-additional GUI is planned. The configuration file is best explained by
-example:
+Currently TrafficToll works based on a YAML configuration file. The configuration file
+is best explained by example:
 
 ```YAML
 # Global limits
