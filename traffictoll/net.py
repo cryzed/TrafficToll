@@ -5,7 +5,9 @@ import re
 import psutil
 from loguru import logger
 
-ProcessFilterPredicate = collections.namedtuple('ProcessFilterPredicate', ['name', 'conditions'])
+ProcessFilterPredicate = collections.namedtuple(
+    "ProcessFilterPredicate", ["name", "conditions"]
+)
 
 
 def _match_process(process, predicate):
@@ -14,7 +16,7 @@ def _match_process(process, predicate):
     if isinstance(value, int):
         value = str(value)
     elif isinstance(value, (list, tuple)):
-        value = ' '.join(value)
+        value = " ".join(value)
 
     return bool(re.match(regex, value))
 
@@ -29,10 +31,15 @@ def filter_net_connections(predicates):
 
         try:
             process = psutil.Process(connection.pid)
-            if all(_match_process(process, condition) for condition in predicate.conditions):
+            if all(
+                _match_process(process, condition) for condition in predicate.conditions
+            ):
                 filtered[predicate.name].append(connection)
         except psutil.NoSuchProcess:
-            logger.warning('Process with PID {} died while filtering network connections', connection.pid)
+            logger.warning(
+                "Process with PID {} died while filtering network connections",
+                connection.pid,
+            )
             continue
 
     return filtered

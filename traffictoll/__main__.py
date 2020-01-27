@@ -1,3 +1,3 @@
-from traffictoll.cli import cli_main
+from .cli import cli_main
 
 cli_main()

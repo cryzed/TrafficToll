@@ -8,9 +8,11 @@ authors = ["cryzed <cryzed@googlemail.com>"]
 python = "^3.7"
 psutil = "^5.6.7"
 "ruamel.yaml" = "^0.16.5"
-loguru = "^0.4.0"
+loguru = "^0.4.1"
+"ruamel.yamL" = "^0.16.6"
 
 [tool.poetry.dev-dependencies]
+black = "^19.10b0"
 
 [build-system]
 requires = ["poetry>=0.12"]
