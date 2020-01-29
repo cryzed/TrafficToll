@@ -7,6 +7,10 @@ from typing import Optional
 from loguru import logger
 
 
+class DependencyError(Exception):
+    pass
+
+
 # Not sure if subprocess.Popen caches the value
 @functools.lru_cache(None)
 def _which(binary: str) -> Optional[str]:
@@ -19,7 +23,7 @@ def run(command: str, **kwargs) -> subprocess.CompletedProcess:
     executable, *args = shlex.split(command)
     executable_path = _which(executable)
     if not executable_path:
-        raise RuntimeError(f"Executable for command: {command!r} not found")
+        raise DependencyError(f"Executable for command: {command!r} not found")
 
     logger.debug(command)
     return subprocess.run([executable_path] + args, **kwargs)
