@@ -12,10 +12,12 @@ from .utils import run
 # max rate of 4294967295 bps"
 # (source: `$ man tc`)
 MAX_RATE = 4294967295
-IFB_REGEX = r"ifb\d+"
-FILTER_ID_REGEX = r"filter .*? fh ([a-z0-9]+::[a-z0-9]+?)(?:\s|$)"
-QDISC_ID_REGEX = r"qdisc .+? ([a-z0-9]+?):"
-CLASS_ID_REGEX = r"class .+? (?P<qdisc_id>[a-z0-9]+?):(?P<class_id>[a-z0-9]+)"
+IFB_REGEX = re.compile(r"ifb\d+")
+FILTER_ID_REGEX = re.compile(r"filter .*? fh ([a-z0-9]+::[a-z0-9]+?)(?:\s|$)")
+QDISC_ID_REGEX = re.compile(r"qdisc .+? ([a-z0-9]+?):")
+CLASS_ID_REGEX = re.compile(
+    r"class .+? (?P<qdisc_id>[a-z0-9]+?):(?P<class_id>[a-z0-9]+)"
+)
 
 # This ID seems to be fixed for the ingress QDisc
 INGRESS_QDISC_PARENT_ID = "ffff:fff1"
@@ -49,7 +51,7 @@ def _create_ifb_device() -> str:
 def _acquire_ifb_device() -> str:
     interfaces = psutil.net_if_stats()
     for interface_name, interface in interfaces.items():
-        if not re.match(IFB_REGEX, interface_name):
+        if not IFB_REGEX.match(interface_name):
             continue
 
         if not interface.isup:
@@ -83,7 +85,7 @@ def _get_free_qdisc_id(interface: str) -> int:
 
     ids = set()
     for line in process.stdout.splitlines():
-        match = re.match(QDISC_ID_REGEX, line)
+        match = QDISC_ID_REGEX.match(line)
         if not match:
             logger.warning("Failed to parse line: {!r}", line)
             continue
@@ -112,7 +114,7 @@ def _get_free_class_id(interface: str, qdisc_id: int) -> int:
 
     ids = set()
     for line in process.stdout.splitlines():
-        match = re.match(CLASS_ID_REGEX, line)
+        match = CLASS_ID_REGEX.match(line)
         if not match:
             logger.warning("Failed to parse line: {!r}", line)
             continue
@@ -206,7 +208,7 @@ def _get_filter_ids(interface: str) -> Set[str]:
     )
     ids = set()
     for line in process.stdout.splitlines():
-        match = re.match(FILTER_ID_REGEX, line)
+        match = FILTER_ID_REGEX.match(line)
         if match:
             ids.add(match.group(1))
 
