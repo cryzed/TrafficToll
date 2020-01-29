@@ -12,7 +12,7 @@ keywords=['traffic', 'traffic control', 'tc', 'netlimiter']
 include=['LICENSE']
 
 [tool.poetry.scripts]
-tt = 'traffictoll.cli:cli_main'
+tt = 'traffictoll.__main__:main'
 
 [tool.poetry.dependencies]
 python = "^3.7"
@@ -22,6 +22,7 @@ loguru = "^0.4.1"
 
 [tool.poetry.dev-dependencies]
 black = "^19.10b0"
+mypy = "^0.761"
 
 [build-system]
 requires = ["poetry>=0.12"]

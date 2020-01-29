@@ -1,8 +1,8 @@
 import argparse
 import atexit
 import collections
-import sys
 import time
+from typing import Dict, DefaultDict, Set
 
 from loguru import logger
 from ruamel.yaml import YAML
@@ -18,34 +18,30 @@ from .tc import (
 )
 
 CONFIG_ENCODING = "UTF-8"
-argument_parser = argparse.ArgumentParser()
-argument_parser.add_argument("device")
-argument_parser.add_argument("config")
-argument_parser.add_argument("--delay", "-d", type=float, default=1)
-argument_parser.add_argument(
-    "--logging-level", "-l", choices=logger._core.levels, default="INFO"
-)
 
 
-def _clean_up(ingress_interface, egress_interface):
+def get_argument_parser() -> argparse.ArgumentParser:
+    argument_parser = argparse.ArgumentParser()
+    argument_parser.add_argument("device")
+    argument_parser.add_argument("config")
+    argument_parser.add_argument("--delay", "-d", type=float, default=1)
+    argument_parser.add_argument(
+        "--logging-level",
+        "-l",
+        choices={"TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"},
+        default="INFO",
+    )
+    return argument_parser
+
+
+def _clean_up(ingress_interface: str, egress_interface: str) -> None:
     logger.info("Cleaning up QDiscs")
     tc_remove_qdisc(ingress_interface)
     tc_remove_qdisc(egress_interface)
     tc_remove_qdisc(egress_interface, INGRESS_QDISC_PARENT_ID)
 
 
-def cli_main():
-    arguments = argument_parser.parse_args()
-
-    try:
-        main(arguments)
-    except KeyboardInterrupt:
-        logger.info("Aborted")
-
-
-def main(arguments):
-    logger.stop(0)
-    logger.add(sys.stderr, level=arguments.logging_level)
+def main(arguments: argparse.Namespace) -> None:
     with open(arguments.config, "r", encoding=CONFIG_ENCODING) as file:
         config = YAML().load(file)
 
@@ -70,7 +66,7 @@ def main(arguments):
     atexit.register(_clean_up, ingress_interface, egress_interface)
 
     process_filter_predicates = []
-    class_ids = {"ingress": {}, "egress": {}}
+    class_ids: Dict[str, Dict[str, int]] = {"ingress": {}, "egress": {}}
     for name, process in (config.get("processes", {}) or {}).items():
         # Prepare process filter predicates to match network connections
         conditions = [list(match.items())[0] for match in process.get("match", [])]
@@ -107,9 +103,9 @@ def main(arguments):
             )
             class_ids["egress"][name] = ingress_class_id
 
-    port_to_filter_id = {"ingress": {}, "egress": {}}
+    port_to_filter_id: Dict[str, Dict[int, str]] = {"ingress": {}, "egress": {}}
 
-    def add_ingress_filter(port, class_id):
+    def add_ingress_filter(port: int, class_id: int) -> None:
         filter_id = tc_add_u32_filter(
             ingress_interface,
             f"match ip dport {port} 0xffff",
@@ -118,13 +114,13 @@ def main(arguments):
         )
         port_to_filter_id["ingress"][port] = filter_id
 
-    def add_egress_filter(port, class_id):
+    def add_egress_filter(port: int, class_id: int) -> None:
         filter_id = tc_add_u32_filter(
             egress_interface, f"match ip sport {port} 0xffff", egress_qdisc_id, class_id
         )
         port_to_filter_id["egress"][port] = filter_id
 
-    def remove_filters(port):
+    def remove_filters(port: int) -> None:
         ingress_filter_id = port_to_filter_id["ingress"].get(port)
         if ingress_filter_id:
             tc_remove_u32_filter(ingress_interface, ingress_filter_id, ingress_qdisc_id)
@@ -135,7 +131,7 @@ def main(arguments):
             tc_remove_u32_filter(egress_interface, egress_filter_id, egress_qdisc_id)
             del port_to_filter_id["egress"][port]
 
-    filtered_ports = collections.defaultdict(set)
+    filtered_ports: DefaultDict[str, Set[int]] = collections.defaultdict(set)
     while True:
         filtered_connections = filter_net_connections(process_filter_predicates)
         for name, connections in filtered_connections.items():

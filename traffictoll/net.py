@@ -1,6 +1,7 @@
 import collections
 import itertools
 import re
+from typing import List, DefaultDict, Iterable
 
 import psutil
 from loguru import logger
@@ -10,7 +11,7 @@ ProcessFilterPredicate = collections.namedtuple(
 )
 
 
-def _match_process(process, predicate):
+def _match_process(process: psutil.Process, predicate: str) -> bool:
     name, regex = predicate
     value = getattr(process, name)()
     if isinstance(value, int):
@@ -21,8 +22,12 @@ def _match_process(process, predicate):
     return bool(re.match(regex, value))
 
 
-def filter_net_connections(predicates):
-    filtered = collections.defaultdict(list)
+def filter_net_connections(
+    predicates: Iterable[ProcessFilterPredicate],
+) -> DefaultDict[str, List[psutil._common.pconn]]:
+    filtered: DefaultDict[str, List[psutil._common.pconn]] = collections.defaultdict(
+        list
+    )
     connections = psutil.net_connections()
     for connection, predicate in itertools.product(connections, predicates):
         # Stop no specified conditions from matching every process

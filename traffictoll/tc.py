@@ -1,6 +1,7 @@
 import atexit
 import re
 import subprocess
+from typing import Iterable, Optional, Tuple, Set
 
 import psutil
 from loguru import logger
@@ -20,7 +21,9 @@ CLASS_ID_REGEX = r"class .+? (?P<qdisc_id>[a-z0-9]+?):(?P<class_id>[a-z0-9]+)"
 INGRESS_QDISC_PARENT_ID = "ffff:fff1"
 
 
-def _clean_up(remove_ifb_device=False, shutdown_ifb_device=None):
+def _clean_up(
+    remove_ifb_device: bool = False, shutdown_ifb_device: Optional[str] = None
+) -> None:
     logger.info("Cleaning up IFB device")
     if remove_ifb_device:
         run("rmmod ifb")
@@ -28,11 +31,11 @@ def _clean_up(remove_ifb_device=False, shutdown_ifb_device=None):
         run(f"ip link set dev {shutdown_ifb_device} down")
 
 
-def _activate_interface(name):
+def _activate_interface(name: str) -> None:
     run(f"ip link set dev {name} up")
 
 
-def _create_ifb_device():
+def _create_ifb_device() -> str:
     before = set(psutil.net_if_stats())
     run("modprobe ifb numifbs=1")
     after = set(psutil.net_if_stats())
@@ -43,7 +46,7 @@ def _create_ifb_device():
     return name
 
 
-def _acquire_ifb_device():
+def _acquire_ifb_device() -> str:
     interfaces = psutil.net_if_stats()
     for interface_name, interface in interfaces.items():
         if not re.match(IFB_REGEX, interface_name):
@@ -61,7 +64,7 @@ def _acquire_ifb_device():
     return _create_ifb_device()
 
 
-def _find_free_id(ids):
+def _find_free_id(ids: Iterable[int]) -> int:
     if not isinstance(ids, set):
         ids = set(ids)
 
@@ -71,7 +74,7 @@ def _find_free_id(ids):
     return current
 
 
-def _get_free_qdisc_id(interface):
+def _get_free_qdisc_id(interface: str) -> int:
     process = run(
         f"tc qdisc show dev {interface}",
         stdout=subprocess.PIPE,
@@ -80,7 +83,12 @@ def _get_free_qdisc_id(interface):
 
     ids = set()
     for line in process.stdout.splitlines():
-        id_string = re.match(QDISC_ID_REGEX, line).group(1)
+        match = re.match(QDISC_ID_REGEX, line)
+        if not match:
+            logger.warning("Failed to parse line: {!r}", line)
+            continue
+
+        id_string = match.group(1)
         try:
             id_ = int(id_string)
         except ValueError:
@@ -95,7 +103,7 @@ def _get_free_qdisc_id(interface):
     return _find_free_id(ids)
 
 
-def _get_free_class_id(interface, qdisc_id):
+def _get_free_class_id(interface: str, qdisc_id: int) -> int:
     process = run(
         f"tc class show dev {interface}",
         stdout=subprocess.PIPE,
@@ -104,14 +112,23 @@ def _get_free_class_id(interface, qdisc_id):
 
     ids = set()
     for line in process.stdout.splitlines():
-        match = re.match(CLASS_ID_REGEX, line).groupdict()
-        if int(match["qdisc_id"]) == qdisc_id:
-            ids.add(int(match["class_id"]))
+        match = re.match(CLASS_ID_REGEX, line)
+        if not match:
+            logger.warning("Failed to parse line: {!r}", line)
+            continue
+
+        groups = match.groupdict()
+        if int(groups["qdisc_id"]) == qdisc_id:
+            ids.add(int(groups["class_id"]))
 
     return _find_free_id(ids)
 
 
-def tc_setup(interface, download_rate=None, upload_rate=None):
+def tc_setup(
+    interface: str,
+    download_rate: Optional[int] = None,
+    upload_rate: Optional[int] = None,
+) -> Tuple[Tuple[str, int, int], Tuple[str, int, int]]:
     download_rate = download_rate or MAX_RATE
     upload_rate = upload_rate or MAX_RATE
 
@@ -167,7 +184,9 @@ def tc_setup(interface, download_rate=None, upload_rate=None):
     )
 
 
-def tc_add_htb_class(interface, parent_qdisc_id, parent_class_id, rate):
+def tc_add_htb_class(
+    interface: str, parent_qdisc_id: int, parent_class_id: int, rate: int,
+):
     class_id = _get_free_class_id(interface, parent_qdisc_id)
     # rate of 1byte/s is the lowest we can specify. All classes added this way should
     # only be allowed to borrow from the parent class, otherwise it's possible to
@@ -179,7 +198,7 @@ def tc_add_htb_class(interface, parent_qdisc_id, parent_class_id, rate):
     return class_id
 
 
-def _get_filter_ids(interface):
+def _get_filter_ids(interface: str) -> Set[str]:
     process = run(
         f"tc filter show dev {interface}",
         stdout=subprocess.PIPE,
@@ -194,7 +213,9 @@ def _get_filter_ids(interface):
     return ids
 
 
-def tc_add_u32_filter(interface, predicate, parent_qdisc_id, class_id):
+def tc_add_u32_filter(
+    interface: str, predicate: str, parent_qdisc_id: int, class_id: int,
+) -> str:
     before = _get_filter_ids(interface)
     run(
         f"tc filter add dev {interface} protocol ip parent {parent_qdisc_id}: prio 1 "
@@ -208,12 +229,12 @@ def tc_add_u32_filter(interface, predicate, parent_qdisc_id, class_id):
     return difference.pop()
 
 
-def tc_remove_u32_filter(interface, filter_id, parent_qdisc_id):
+def tc_remove_u32_filter(interface: str, filter_id: str, parent_qdisc_id: int) -> None:
     run(
         f"tc filter del dev {interface} parent {parent_qdisc_id}: handle {filter_id} "
         "prio 1 protocol ip u32"
     )
 
 
-def tc_remove_qdisc(interface, parent="root"):
+def tc_remove_qdisc(interface: str, parent: str = "root") -> None:
     run(f"tc qdisc del dev {interface} parent {parent}")
