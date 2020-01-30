@@ -17,6 +17,7 @@ from .tc import (
     tc_remove_u32_filter,
     tc_setup,
 )
+from .tc import MAX_RATE
 
 CONFIG_ENCODING = "UTF-8"
 
@@ -51,20 +52,37 @@ def main(arguments: argparse.Namespace) -> None:
     with open(arguments.config, "r", encoding=CONFIG_ENCODING) as file:
         config = YAML().load(file)
 
-    # TODO: Parse download rate
+    # TODO: Parse download rate and raise ConfigError appropriately
     global_download_rate = config.get("download")
     global_upload_rate = config.get("upload")
-    if global_download_rate:
+
+    # Determine the priority we want the global default classes to have: this is n+1
+    # where n is the lowest defined (=highest integer) priority for any processes in the
+    # configuration file. Processes that do not explicitly specify a priority will use
+    # this default priority and therefore have the same priority as the global default
+    # classes
+    lowest_priority = -1
+    for name, process in (config.get("processes", {}) or {}).items():
+        lowest_priority = max(process.get("upload-priority", -1), lowest_priority)
+        lowest_priority = max(process.get("download-priority", -1), lowest_priority)
+
+    lowest_priority += 1
+
+    if global_download_rate is not None:
         logger.info(
-            "Setting up global download limiter with max rate {}", global_download_rate
+            "Setting up global class with max download rate: {} and priority: {}",
+            global_download_rate,
+            lowest_priority,
         )
-    if global_upload_rate:
+    if global_upload_rate is not None:
         logger.info(
-            "Setting up global upload limiter with max rate {}", global_upload_rate
+            "Setting up global class with max upload rate: {} and priority: {}",
+            global_upload_rate,
+            lowest_priority,
         )
 
     ingress, egress = tc_setup(
-        arguments.device, global_download_rate, global_upload_rate
+        arguments.device, global_download_rate, global_upload_rate, lowest_priority
     )
     ingress_interface, ingress_qdisc_id, ingress_root_class_id = ingress
     egress_interface, egress_qdisc_id, egress_root_class_id = egress
@@ -81,34 +99,90 @@ def main(arguments: argparse.Namespace) -> None:
         conditions = [list(match.items())[0] for match in process.get("match", [])]
         if not conditions:
             logger.warning(
-                "No conditions for {!r} specified, it will never be matched", name
+                "No conditions for: {!r} specified, it will never be matched", name
             )
 
         predicate = ProcessFilterPredicate(name, conditions)
         process_filter_predicates.append(predicate)
 
         # Set up classes for download/upload limiting
-        download_rate = process.get("download")
-        upload_rate = process.get("upload")
-        if download_rate:
+        config_download_rate = process.get("download")
+        config_download_priority = process.get("download-priority")
+        download_rate = (
+            MAX_RATE if config_download_rate is None else config_download_rate
+        )
+        download_priority = (
+            lowest_priority
+            if config_download_priority is None
+            else config_download_priority
+        )
+
+        config_upload_rate = process.get("upload")
+        config_upload_priority = process.get("upload-priority")
+        upload_rate = MAX_RATE if config_upload_rate is None else config_upload_rate
+        upload_priority = (
+            lowest_priority
+            if config_upload_priority is None
+            else config_upload_priority
+        )
+
+        if config_download_rate is not None:
             logger.info(
-                "Setting up download limiter for {!r} with max rate {}",
+                "Setting up class for: {!r} with max download rate: {} and priority: {}",
                 name,
                 download_rate,
+                download_priority,
             )
             egress_class_id = tc_add_htb_class(
                 ingress_interface,
                 ingress_qdisc_id,
                 ingress_root_class_id,
                 download_rate,
+                download_priority,
             )
             class_ids[_TrafficType.Ingress][name] = egress_class_id
-        if upload_rate:
+        elif config_download_priority is not None:
             logger.info(
-                "Setting up upload limiter for {!r} with max rate {}", name, upload_rate
+                "Setting up class for: {!r} with unlimited download rate and priority: {}",
+                name,
+                download_priority,
+            )
+            egress_class_id = tc_add_htb_class(
+                ingress_interface,
+                ingress_qdisc_id,
+                ingress_root_class_id,
+                download_rate,
+                download_priority,
+            )
+            class_ids[_TrafficType.Ingress][name] = egress_class_id
+
+        if config_upload_rate is not None:
+            logger.info(
+                "Setting up class for: {!r} with max upload rate: {} and priority: {}",
+                name,
+                upload_rate,
+                upload_priority,
             )
             ingress_class_id = tc_add_htb_class(
-                egress_interface, egress_qdisc_id, egress_root_class_id, upload_rate
+                egress_interface,
+                egress_qdisc_id,
+                egress_root_class_id,
+                upload_rate,
+                upload_priority,
+            )
+            class_ids[_TrafficType.Egress][name] = ingress_class_id
+        elif config_upload_priority is not None:
+            logger.info(
+                "Setting up class for: {!r} with unlimited upload rate and priority: {}",
+                name,
+                upload_priority,
+            )
+            ingress_class_id = tc_add_htb_class(
+                egress_interface,
+                egress_qdisc_id,
+                egress_root_class_id,
+                upload_rate,
+                upload_priority,
             )
             class_ids[_TrafficType.Egress][name] = ingress_class_id
 
@@ -155,7 +229,7 @@ def main(arguments: argparse.Namespace) -> None:
             new_ports = sorted(ports.difference(filtered_ports[name]))
             if new_ports:
                 logger.info(
-                    "Filtering traffic for {!r} on local ports {}",
+                    "Shaping traffic for {!r} on local ports {}",
                     name,
                     ", ".join(map(str, new_ports)),
                 )

@@ -127,8 +127,9 @@ def _get_free_class_id(interface: str, qdisc_id: int) -> int:
 
 def tc_setup(
     interface: str,
-    download_rate: Optional[int] = None,
-    upload_rate: Optional[int] = None,
+    download_rate: int = MAX_RATE,
+    upload_rate: int = MAX_RATE,
+    default_priority: int = 0,
 ) -> Tuple[Tuple[str, int, int], Tuple[str, int, int]]:
     download_rate = download_rate or MAX_RATE
     upload_rate = upload_rate or MAX_RATE
@@ -153,7 +154,11 @@ def tc_setup(
     # Create default class that all traffic is routed through that doesn't match any
     # other filter
     ifb_default_class_id = tc_add_htb_class(
-        ifb_device, ifb_device_qdisc_id, ifb_device_root_class_id, download_rate
+        ifb_device,
+        ifb_device_qdisc_id,
+        ifb_device_root_class_id,
+        download_rate,
+        default_priority,
     )
     run(
         f"tc filter add dev {ifb_device} parent {ifb_device_qdisc_id}: prio 2 protocol "
@@ -172,7 +177,11 @@ def tc_setup(
     # Create default class that all traffic is routed through that doesn't match any
     # other filter
     interface_default_class_id = tc_add_htb_class(
-        interface, interface_qdisc_id, interface_root_class_id, upload_rate
+        interface,
+        interface_qdisc_id,
+        interface_root_class_id,
+        upload_rate,
+        default_priority,
     )
     run(
         f"tc filter add dev {interface} parent {interface_qdisc_id}: prio 2 protocol ip"
@@ -186,7 +195,11 @@ def tc_setup(
 
 
 def tc_add_htb_class(
-    interface: str, parent_qdisc_id: int, parent_class_id: int, rate: int,
+    interface: str,
+    parent_qdisc_id: int,
+    parent_class_id: int,
+    rate: int,
+    priority: int = 0,
 ):
     class_id = _get_free_class_id(interface, parent_qdisc_id)
     # rate of 1byte/s is the lowest we can specify. All classes added this way should
@@ -194,7 +207,7 @@ def tc_add_htb_class(
     # specify a rate higher than the global rate
     run(
         f"tc class add dev {interface} parent {parent_qdisc_id}:{parent_class_id} "
-        f"classid {parent_qdisc_id}:{class_id} htb rate 8 ceil {rate}"
+        f"classid {parent_qdisc_id}:{class_id} htb rate 8 ceil {rate} prio {priority}"
     )
     return class_id
 

@@ -1,11 +1,20 @@
 # Global limits
-download: 500kbps
-upload: 100kbps
+#download: 500kbps
+#upload: 100kbps
 
 # Matched process limits
 processes:
+  # Assign the game "Path of Exile" the highest traffic priority, the rest (matched and
+  # unmatched processes) will get a higher priority automatically. This will keep its
+  # latency low even when other processes cause a huge amount of traffic (think:
+  # downloading etc.)
+  "Path of Exile":
+    download-priority: 0
+    upload-priority: 0
+    match:
+      - name: "PathOfExile_x64"
+
   Vivaldi:
-    download: 100kbps
     match:
       - exe: /opt/vivaldi/vivaldi-bin
 
