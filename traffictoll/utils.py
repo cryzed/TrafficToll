@@ -6,24 +6,20 @@ from typing import Optional
 
 from loguru import logger
 
-
-class DependencyError(Exception):
-    pass
+from .exceptions import DependencyError
 
 
-# Not sure if subprocess.Popen caches the value
+# Cache the full executable path just in case subprocess.Popen doesn't
 @functools.lru_cache(None)
 def _which(binary: str) -> Optional[str]:
     return shutil.which(binary)
 
 
-# This is fine because we aren't dealing with any values in the commands that have to be
-# quoted; on the off-chance that they have to, there's shlex.quote
-def run(command: str, **kwargs) -> subprocess.CompletedProcess:
-    executable, *args = shlex.split(command)
-    executable_path = _which(executable)
-    if not executable_path:
+def run(command: str, **popen_kwargs) -> subprocess.CompletedProcess:
+    executable, *arguments = shlex.split(command)
+    path = _which(executable)
+    if not path:
         raise DependencyError(f"Executable for command: {command!r} not found")
 
     logger.debug(command)
-    return subprocess.run([executable_path] + args, **kwargs)
+    return subprocess.run([path] + arguments, **popen_kwargs)

@@ -9,8 +9,7 @@ from loguru import logger
 from .utils import run
 
 # "TC store rates as a 32-bit unsigned integer in bps internally, so we can specify a
-# max rate of 4294967295 bps"
-# (source: `$ man tc`)
+# max rate of 4294967295 bps" (source: `$ man tc`)
 MAX_RATE = 4294967295
 IFB_REGEX = re.compile(r"ifb\d+")
 FILTER_ID_REGEX = re.compile(r"filter .*? fh ([a-z0-9]+::[a-z0-9]+?)(?:\s|$)")

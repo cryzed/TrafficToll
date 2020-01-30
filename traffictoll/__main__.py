@@ -3,7 +3,7 @@ import sys
 from loguru import logger
 
 from .cli import get_argument_parser, main as cli_main
-from .utils import DependencyError
+from .exceptions import DependencyError
 
 
 def main() -> None:
@@ -20,3 +20,7 @@ def main() -> None:
         logger.error("Missing dependency: {}", error)
     except Exception as error:
         logger.error("Unexpected error occurred: {}", error)
+
+
+if __name__ == "__main__":
+    main()
