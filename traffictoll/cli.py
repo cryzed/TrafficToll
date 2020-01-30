@@ -82,7 +82,7 @@ def main(arguments: argparse.Namespace) -> None:
         )
     else:
         logger.info(
-            "Setting up global class unlimited download rate and priority: {}",
+            "Setting up global class with unlimited download rate and priority: {}",
             lowest_priority,
         )
     if config_global_upload_rate is not None:
@@ -93,7 +93,7 @@ def main(arguments: argparse.Namespace) -> None:
         )
     else:
         logger.info(
-            "Setting up global class unlimited upload rate and priority: {}",
+            "Setting up global class with unlimited upload rate and priority: {}",
             lowest_priority,
         )
 
