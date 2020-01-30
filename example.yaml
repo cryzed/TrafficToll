@@ -1,6 +1,6 @@
 # Global limits
-#download: 500kbps
-#upload: 100kbps
+download: 500kbps
+upload: 100kbps
 
 # Matched process limits
 processes:
