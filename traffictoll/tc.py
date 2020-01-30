@@ -131,9 +131,6 @@ def tc_setup(
     upload_rate: int = MAX_RATE,
     default_priority: int = 0,
 ) -> Tuple[Tuple[str, int, int], Tuple[str, int, int]]:
-    download_rate = download_rate or MAX_RATE
-    upload_rate = upload_rate or MAX_RATE
-
     # Set up IFB device
     run(f"tc qdisc add dev {interface} handle ffff: ingress")
     ifb_device = _acquire_ifb_device()
