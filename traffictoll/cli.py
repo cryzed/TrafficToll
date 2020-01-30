@@ -53,8 +53,14 @@ def main(arguments: argparse.Namespace) -> None:
         config = YAML().load(file)
 
     # TODO: Parse download rate and raise ConfigError appropriately
-    global_download_rate = config.get("download")
-    global_upload_rate = config.get("upload")
+    config_global_download_rate = config.get("download")
+    global_download_rate = (
+        MAX_RATE if config_global_download_rate is None else config_global_download_rate
+    )
+    config_global_upload_rate = config.get("upload")
+    global_upload_rate = (
+        MAX_RATE if config_global_upload_rate is None else config_global_upload_rate
+    )
 
     # Determine the priority we want the global default classes to have: this is n+1
     # where n is the lowest defined (=highest integer) priority for any processes in the
@@ -68,21 +74,31 @@ def main(arguments: argparse.Namespace) -> None:
 
     lowest_priority += 1
 
-    if global_download_rate is not None:
+    if config_global_download_rate is not None:
         logger.info(
             "Setting up global class with max download rate: {} and priority: {}",
             global_download_rate,
             lowest_priority,
         )
-    if global_upload_rate is not None:
+    else:
+        logger.info(
+            "Setting up global class unlimited download rate and priority: {}",
+            lowest_priority,
+        )
+    if config_global_upload_rate is not None:
         logger.info(
             "Setting up global class with max upload rate: {} and priority: {}",
             global_upload_rate,
             lowest_priority,
         )
+    else:
+        logger.info(
+            "Setting up global class unlimited upload rate and priority: {}",
+            lowest_priority,
+        )
 
     ingress, egress = tc_setup(
-        arguments.device, global_download_rate, global_upload_rate, lowest_priority
+        arguments.device, global_download_rate, global_upload_rate, lowest_priority,
     )
     ingress_interface, ingress_qdisc_id, ingress_root_class_id = ingress
     egress_interface, egress_qdisc_id, egress_root_class_id = egress
