@@ -136,7 +136,9 @@ def main(arguments: argparse.Namespace) -> None:
         config_download_rate = process.get("download")
         config_download_priority = process.get("download-priority")
         download_rate = (
-            MAX_RATE if config_download_rate is None else config_download_rate
+            global_download_rate
+            if config_download_rate is None
+            else config_download_rate
         )
         download_priority = (
             lowest_priority
@@ -146,7 +148,9 @@ def main(arguments: argparse.Namespace) -> None:
 
         config_upload_rate = process.get("upload")
         config_upload_priority = process.get("upload-priority")
-        upload_rate = MAX_RATE if config_upload_rate is None else config_upload_rate
+        upload_rate = (
+            global_upload_rate if config_upload_rate is None else config_upload_rate
+        )
         upload_priority = (
             lowest_priority
             if config_upload_priority is None
