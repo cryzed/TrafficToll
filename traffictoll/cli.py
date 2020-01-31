@@ -20,6 +20,10 @@ from .tc import (
 )
 
 CONFIG_ENCODING = "UTF-8"
+GLOBAL_MINIMUM_DOWNLOAD_RATE = "100kbps"
+GLOBAL_MINIMUM_UPLOAD_RATE = "10kbps"
+MINIMUM_DOWNLOAD_RATE = "10kbps"
+MINIMUM_UPLOAD_RATE = "1kbps"
 
 
 class _TrafficType(enum.Enum):
@@ -85,31 +89,57 @@ def main(arguments: argparse.Namespace) -> None:
 
     lowest_priority += 1
 
+    config_global_download_minimum_rate = config.get("download-minimum")
+    global_download_minimum_rate = (
+        GLOBAL_MINIMUM_DOWNLOAD_RATE
+        if config_global_download_minimum_rate is None
+        else config_global_download_minimum_rate
+    )
+    config_global_upload_minimum_rate = config.get("upload-minimum")
+    global_upload_minimum_rate = (
+        GLOBAL_MINIMUM_UPLOAD_RATE
+        if config_global_upload_minimum_rate is None
+        else config_global_upload_minimum_rate
+    )
+
     if config_global_download_rate is not None:
         logger.info(
-            "Setting up global class with max download rate: {} and priority: {}",
+            "Setting up global class with max download rate: {} (minimum: {}) and "
+            "priority: {}",
             global_download_rate,
+            global_download_minimum_rate,
             lowest_priority,
         )
     else:
         logger.info(
-            "Setting up global class with unlimited download rate and priority: {}",
+            "Setting up global class with unlimited download rate (minimum: {}) and "
+            "priority: {}",
             lowest_priority,
+            global_download_minimum_rate,
         )
     if config_global_upload_rate is not None:
         logger.info(
-            "Setting up global class with max upload rate: {} and priority: {}",
+            "Setting up global class with max upload rate: {} (minimum: {}) and "
+            "priority: {}",
             global_upload_rate,
+            global_upload_minimum_rate,
             lowest_priority,
         )
     else:
         logger.info(
-            "Setting up global class with unlimited upload rate and priority: {}",
+            "Setting up global class with unlimited upload rate (minimum: {}) and "
+            "priority: {}",
             lowest_priority,
+            global_upload_minimum_rate,
         )
 
     ingress, egress = tc_setup(
-        arguments.device, global_download_rate, global_upload_rate, lowest_priority,
+        arguments.device,
+        global_download_rate,
+        global_download_minimum_rate,
+        global_upload_rate,
+        global_upload_minimum_rate,
+        lowest_priority,
     )
     ingress_interface, ingress_qdisc_id, ingress_root_class_id = ingress
     egress_interface, egress_qdisc_id, egress_root_class_id = egress
@@ -160,11 +190,26 @@ def main(arguments: argparse.Namespace) -> None:
             else config_upload_priority
         )
 
+        config_download_minimum_rate = process.get("download-minimum")
+        download_minimum_rate = (
+            MINIMUM_DOWNLOAD_RATE
+            if config_download_minimum_rate is None
+            else config_download_minimum_rate
+        )
+        config_upload_minimum_rate = process.get("upload-minimum")
+        upload_minimum_rate = (
+            MINIMUM_UPLOAD_RATE
+            if config_upload_minimum_rate is None
+            else config_upload_minimum_rate
+        )
+
         if config_download_rate is not None:
             logger.info(
-                "Setting up class for: {!r} with max download rate: {} and priority: {}",
+                "Setting up class for: {!r} with max download rate: {} (minimum: {}) "
+                "and priority: {}",
                 name,
                 download_rate,
+                download_minimum_rate,
                 download_priority,
             )
             egress_class_id = tc_add_htb_class(
@@ -172,13 +217,16 @@ def main(arguments: argparse.Namespace) -> None:
                 ingress_qdisc_id,
                 ingress_root_class_id,
                 download_rate,
+                download_minimum_rate,
                 download_priority,
             )
             class_ids[_TrafficType.Ingress][name] = egress_class_id
         elif config_download_priority is not None:
             logger.info(
-                "Setting up class for: {!r} with unlimited download rate and priority: {}",
+                "Setting up class for: {!r} with unlimited download rate (minimum: {}) "
+                "and priority: {}",
                 name,
+                download_minimum_rate,
                 download_priority,
             )
             egress_class_id = tc_add_htb_class(
@@ -186,15 +234,18 @@ def main(arguments: argparse.Namespace) -> None:
                 ingress_qdisc_id,
                 ingress_root_class_id,
                 download_rate,
+                download_minimum_rate,
                 download_priority,
             )
             class_ids[_TrafficType.Ingress][name] = egress_class_id
 
         if config_upload_rate is not None:
             logger.info(
-                "Setting up class for: {!r} with max upload rate: {} and priority: {}",
+                "Setting up class for: {!r} with max upload rate: {} (minimum: {}) and "
+                "priority: {}",
                 name,
                 upload_rate,
+                upload_minimum_rate,
                 upload_priority,
             )
             ingress_class_id = tc_add_htb_class(
@@ -202,13 +253,16 @@ def main(arguments: argparse.Namespace) -> None:
                 egress_qdisc_id,
                 egress_root_class_id,
                 upload_rate,
+                upload_minimum_rate,
                 upload_priority,
             )
             class_ids[_TrafficType.Egress][name] = ingress_class_id
         elif config_upload_priority is not None:
             logger.info(
-                "Setting up class for: {!r} with unlimited upload rate and priority: {}",
+                "Setting up class for: {!r} with unlimited upload rate (minimum: {}) "
+                "and priority: {}",
                 name,
+                upload_minimum_rate,
                 upload_priority,
             )
             ingress_class_id = tc_add_htb_class(
@@ -216,6 +270,7 @@ def main(arguments: argparse.Namespace) -> None:
                 egress_qdisc_id,
                 egress_root_class_id,
                 upload_rate,
+                upload_minimum_rate,
                 upload_priority,
             )
             class_ids[_TrafficType.Egress][name] = ingress_class_id

@@ -46,6 +46,15 @@ is best explained by example:
 download: 5mbps
 upload: 1mbps
 
+# Guaranteed download and upload rates for all global traffic that is not shaped as part
+# of a matched process by TrafficToll. The idea here is to leave enough "guaranteed"
+# bandwidth to all applications not defined in "processes", so that they are not starved
+# to a bandwidth, by processes with higher priority, that would cause the other IP to
+# drop the connection. These are the default values, if omitted. Keep in mind that this
+# doesn't reserve the bandwidth -- if this traffic is not made use of, it's available
+# to processes with higher priority.
+download-minimum: 100kbps
+upload-minimum: 10kbps
 
 # A list of processes you want to match and their respective settings
 processes:
@@ -129,7 +138,7 @@ processes:
     # The process that actually creates network traffic for electron-based applications
     # is not uniquely identifiable. Instead we match a uniquely identifiable parent
     # process, in this case "riot-desktop", and set recursive to True. This instructs
-    # TrafficToll to traffic shape the connections of the matched process and all it's
+    # TrafficToll to traffic shape the connections of the matched process and all its
     # descendants
     recursive: True
     match:
@@ -140,6 +149,13 @@ processes:
     # The download-priority and upload-priority if omitted while another process
     # explicitly specifies them will automatically be the lowest: in this case 2, the
     # same as "Discord", our lowest priority process.
+
+    # Since the download and upload priority of this process is the lowest, make sure
+    # that its connections don't starve when processes with higher priority use up all
+    # the available bandwidth. These are the default values for each process and will be
+    # applied if omitted.
+    download-minimum: 10kbps
+    upload-minimum: 1kbps
 
     # JDownloader 2 obviously has its own bandwidth limiting, this is just here as an
     # example to show that matching on something else than the executable's name and

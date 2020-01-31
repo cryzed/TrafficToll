@@ -1,13 +1,14 @@
 import atexit
 import re
 import subprocess
-from typing import Iterable, Optional, Tuple, Set
+from typing import Iterable, Optional, Tuple, Set, Union
 
 import psutil
 from loguru import logger
 
 from .utils import run
 
+MIN_RATE = 8
 # "TC store rates as a 32-bit unsigned integer in bps internally, so we can specify a
 # max rate of 4294967295 bps" (source: `$ man tc`)
 MAX_RATE = 4294967295
@@ -127,8 +128,10 @@ def _get_free_class_id(interface: str, qdisc_id: int) -> int:
 
 def tc_setup(
     interface: str,
-    download_rate: int = MAX_RATE,
-    upload_rate: int = MAX_RATE,
+    download_rate: Union[int, str] = MAX_RATE,
+    download_minimum_rate: Union[int, str] = MIN_RATE,
+    upload_rate: Union[int, str] = MAX_RATE,
+    upload_minimum_rate: Union[int, str] = MIN_RATE,
     default_priority: int = 0,
 ) -> Tuple[Tuple[str, int, int], Tuple[str, int, int]]:
     # Set up IFB device
@@ -155,6 +158,7 @@ def tc_setup(
         ifb_device_qdisc_id,
         ifb_device_root_class_id,
         download_rate,
+        download_minimum_rate,
         default_priority,
     )
     run(
@@ -178,6 +182,7 @@ def tc_setup(
         interface_qdisc_id,
         interface_root_class_id,
         upload_rate,
+        upload_minimum_rate,
         default_priority,
     )
     run(
@@ -195,7 +200,8 @@ def tc_add_htb_class(
     interface: str,
     parent_qdisc_id: int,
     parent_class_id: int,
-    rate: int,
+    ceil: Union[int, str] = MAX_RATE,
+    rate: Union[int, str] = MIN_RATE,
     priority: int = 0,
 ):
     class_id = _get_free_class_id(interface, parent_qdisc_id)
@@ -204,7 +210,7 @@ def tc_add_htb_class(
     # specify a rate higher than the global rate
     run(
         f"tc class add dev {interface} parent {parent_qdisc_id}:{parent_class_id} "
-        f"classid {parent_qdisc_id}:{class_id} htb rate 8 ceil {rate} prio {priority}"
+        f"classid {parent_qdisc_id}:{class_id} htb rate {rate} ceil {ceil} prio {priority}"
     )
     return class_id
 
