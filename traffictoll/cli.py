@@ -54,13 +54,24 @@ def main(arguments: argparse.Namespace) -> None:
 
     # TODO: Parse download rate and raise ConfigError appropriately
     config_global_download_rate = config.get("download")
-    global_download_rate = (
-        MAX_RATE if config_global_download_rate is None else config_global_download_rate
-    )
     config_global_upload_rate = config.get("upload")
-    global_upload_rate = (
-        MAX_RATE if config_global_upload_rate is None else config_global_upload_rate
-    )
+
+    # TODO: Add option to determine max download/upload rate?
+    if config_global_download_rate is None:
+        logger.info(
+            "No global download rate specified, download traffic prioritization won't work"
+        )
+        global_download_rate = MAX_RATE
+    else:
+        global_download_rate = config_global_download_rate
+
+    if config_global_upload_rate is None:
+        logger.info(
+            "No global upload rate specified, upload traffic prioritization won't work"
+        )
+        global_upload_rate = MAX_RATE
+    else:
+        global_upload_rate = config_global_upload_rate
 
     # Determine the priority we want the global default classes to have: this is n+1
     # where n is the lowest defined (=highest integer) priority for any processes in the
