@@ -1,15 +1,15 @@
 [tool.poetry]
 name = "TrafficToll"
 version = "1.1.0"
-description = "NetLimiter-like traffic shaping for Linux"
+description = "NetLimiter-like bandwidth limiting and QoS for Linux"
 authors = ["cryzed <cryzed@googlemail.com>"]
 
 license='GPLv3'
 readme='README.md'
 homepage='https://github.com/cryzed/TrafficToll'
 repository='https://github.com/cryzed/TrafficToll'
-keywords=['traffic', 'traffic control', 'tc', 'netlimiter']
-include=['LICENSE']
+keywords=['traffic', 'traffic control', 'traffic shaping', 'tc', 'netlimiter', 'qos']
+include=['LICENSE', 'example.yaml']
 
 [tool.poetry.scripts]
 tt = 'traffictoll.__main__:main'
