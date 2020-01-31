@@ -122,6 +122,19 @@ processes:
     match:
       - exe: /opt/discord/Discord
 
+  Riot:
+    download-priority: 2
+    upload-priority: 2
+
+    # The process that actually creates network traffic for electron-based applications
+    # is not uniquely identifiable. Instead we match a uniquely identifiable parent
+    # process, in this case "riot-desktop", and set recursive to True. This instructs
+    # TrafficToll to traffic shape the connections of the matched process and all it's
+    # descendants
+    recursive: True
+    match:
+      - name: riot-desktop
+
   JDownloader 2:
     download: 300kbps
     # The download-priority and upload-priority if omitted while another process

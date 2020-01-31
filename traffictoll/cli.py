@@ -128,8 +128,11 @@ def main(arguments: argparse.Namespace) -> None:
             logger.warning(
                 "No conditions for: {!r} specified, it will never be matched", name
             )
+            continue
 
-        predicate = ProcessFilterPredicate(name, conditions)
+        predicate = ProcessFilterPredicate(
+            name, conditions, process.get("recursive", False)
+        )
         process_filter_predicates.append(predicate)
 
         # Set up classes for download/upload limiting

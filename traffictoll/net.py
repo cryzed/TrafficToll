@@ -1,50 +1,57 @@
 import collections
 import itertools
 import re
-from typing import List, DefaultDict, Iterable
+from typing import DefaultDict, Iterable, Set
 
 import psutil
 from loguru import logger
 
+# noinspection PyProtectedMember
+from psutil._common import pconn
+
 ProcessFilterPredicate = collections.namedtuple(
-    "ProcessFilterPredicate", ["name", "conditions"]
+    "ProcessFilterPredicate", ["name", "conditions", "recursive"]
 )
 
 
-def _match_process(process: psutil.Process, predicate: str) -> bool:
-    name, regex = predicate
-    value = getattr(process, name)()
-    if isinstance(value, int):
-        value = str(value)
-    elif isinstance(value, (list, tuple)):
-        value = " ".join(value)
+def _match_process(process: psutil.Process, predicate: ProcessFilterPredicate) -> bool:
+    for condition in predicate.conditions:
+        name, regex = condition
+        value = getattr(process, name)()
+        if isinstance(value, int):
+            value = str(value)
+        elif isinstance(value, (list, tuple)):
+            value = " ".join(value)
 
-    return bool(re.match(regex, value))
+        if not re.match(regex, value):
+            return False
+
+    return True
 
 
 def filter_net_connections(
     predicates: Iterable[ProcessFilterPredicate],
-) -> DefaultDict[str, List[psutil._common.pconn]]:
-    filtered: DefaultDict[str, List[psutil._common.pconn]] = collections.defaultdict(
-        list
-    )
-    connections = psutil.net_connections()
-    for connection, predicate in itertools.product(connections, predicates):
-        # Stop no specified conditions from matching every process
-        if not (predicate.conditions and connection.pid):
-            continue
-
+) -> DefaultDict[str, Set[pconn]]:
+    filtered: DefaultDict[str, Set[pconn]] = collections.defaultdict(set)
+    for process, predicate in itertools.product(psutil.process_iter(), predicates):
         try:
-            process = psutil.Process(connection.pid)
-            if all(
-                _match_process(process, condition) for condition in predicate.conditions
-            ):
-                filtered[predicate.name].append(connection)
+            if not _match_process(process, predicate):
+                continue
+
+            connections = filtered[predicate.name]
+            connections.update(process.connections())
         except psutil.NoSuchProcess:
-            logger.warning(
+            logger.debug(
                 "Process with PID {} died while filtering network connections",
-                connection.pid,
+                process.pid,
             )
             continue
+
+        if predicate.recursive:
+            for child in process.children(recursive=True):
+                try:
+                    connections.update(child.connections())
+                except psutil.NoSuchProcess:
+                    pass
 
     return filtered

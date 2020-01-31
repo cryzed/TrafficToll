@@ -12,14 +12,15 @@ def main() -> None:
     logger.stop(0)
     logger.add(sys.stderr, level=arguments.logging_level)
 
+    # noinspection PyBroadException
     try:
         cli_main(arguments)
     except KeyboardInterrupt:
         logger.info("Aborted")
     except DependencyError as error:
         logger.error("Missing dependency: {}", error)
-    except Exception as error:
-        logger.error("Unexpected error occurred: {}", error)
+    except Exception:
+        logger.exception("Unexpected error occurred:")
 
 
 if __name__ == "__main__":
