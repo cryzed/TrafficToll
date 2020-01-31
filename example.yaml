@@ -101,7 +101,7 @@ processes:
     # The process that actually creates network traffic for electron-based applications
     # is not uniquely identifiable. Instead we match a uniquely identifiable parent
     # process, in this case "riot-desktop", and set recursive to True. This instructs
-    # TrafficToll to traffic shape the connections of the matched process and all it's
+    # TrafficToll to traffic shape the connections of the matched process and all its
     # descendants
     recursive: True
     match:
