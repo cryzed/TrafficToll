@@ -10,6 +10,7 @@ from ruamel.yaml import YAML
 
 from .net import ProcessFilterPredicate, filter_net_connections
 from .tc import (
+    MAX_RATE,
     INGRESS_QDISC_PARENT_ID,
     tc_add_htb_class,
     tc_add_u32_filter,
@@ -17,7 +18,6 @@ from .tc import (
     tc_remove_u32_filter,
     tc_setup,
 )
-from .tc import MAX_RATE
 
 CONFIG_ENCODING = "UTF-8"
 
