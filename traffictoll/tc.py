@@ -1,4 +1,5 @@
 import atexit
+import collections
 import re
 import subprocess
 from typing import Iterable, Optional, Tuple, Set, Union
@@ -22,6 +23,10 @@ CLASS_ID_REGEX = re.compile(
 # This ID seems to be fixed for the ingress QDisc
 INGRESS_QDISC_PARENT_ID = "ffff:fff1"
 
+QDisc: Tuple[str, int, int] = collections.namedtuple(
+    "QDisc", ["device", "id", "root_class_id"]
+)
+
 
 def _clean_up(
     remove_ifb_device: bool = False, shutdown_ifb_device: Optional[str] = None
@@ -33,7 +38,7 @@ def _clean_up(
         run(f"ip link set dev {shutdown_ifb_device} down")
 
 
-def _activate_interface(name: str) -> None:
+def _activate_device(name: str) -> None:
     run(f"ip link set dev {name} up")
 
 
@@ -44,22 +49,22 @@ def _create_ifb_device() -> str:
 
     # It doesn't matter if the created IFB device is ambiguous, any will do
     name = after.difference(before).pop()
-    _activate_interface(name)
+    _activate_device(name)
     return name
 
 
 def _acquire_ifb_device() -> str:
-    interfaces = psutil.net_if_stats()
-    for interface_name, interface in interfaces.items():
-        if not IFB_REGEX.match(interface_name):
+    devices = psutil.net_if_stats()
+    for device_name, device in devices.items():
+        if not IFB_REGEX.match(device_name):
             continue
 
-        if not interface.isup:
-            _activate_interface(interface_name)
+        if not device.isup:
+            _activate_device(device_name)
             # Deactivate existing IFB device if it wasn't activated
-            atexit.register(_clean_up, shutdown_ifb_device=interface_name)
+            atexit.register(_clean_up, shutdown_ifb_device=device_name)
 
-        return interface_name
+        return device_name
 
     # Clean up IFB device if it was created
     atexit.register(_clean_up, remove_ifb_device=True)
@@ -76,11 +81,9 @@ def _find_free_id(ids: Iterable[int]) -> int:
     return current
 
 
-def _get_free_qdisc_id(interface: str) -> int:
+def _get_free_qdisc_id(device: str) -> int:
     process = run(
-        f"tc qdisc show dev {interface}",
-        stdout=subprocess.PIPE,
-        universal_newlines=True,
+        f"tc qdisc show dev {device}", stdout=subprocess.PIPE, universal_newlines=True,
     )
 
     ids = set()
@@ -105,11 +108,9 @@ def _get_free_qdisc_id(interface: str) -> int:
     return _find_free_id(ids)
 
 
-def _get_free_class_id(interface: str, qdisc_id: int) -> int:
+def _get_free_class_id(device: str, qdisc_id: int) -> int:
     process = run(
-        f"tc class show dev {interface}",
-        stdout=subprocess.PIPE,
-        universal_newlines=True,
+        f"tc class show dev {device}", stdout=subprocess.PIPE, universal_newlines=True,
     )
 
     ids = set()
@@ -127,19 +128,19 @@ def _get_free_class_id(interface: str, qdisc_id: int) -> int:
 
 
 def tc_setup(
-    interface: str,
+    device: str,
     download_rate: Union[int, str] = MAX_RATE,
     download_minimum_rate: Union[int, str] = MIN_RATE,
     upload_rate: Union[int, str] = MAX_RATE,
     upload_minimum_rate: Union[int, str] = MIN_RATE,
     default_priority: int = 0,
-) -> Tuple[Tuple[str, int, int], Tuple[str, int, int]]:
+) -> Tuple[QDisc, QDisc]:
     # Set up IFB device
-    run(f"tc qdisc add dev {interface} handle ffff: ingress")
+    run(f"tc qdisc add dev {device} handle ffff: ingress")
     ifb_device = _acquire_ifb_device()
     run(
-        f"tc filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 "
-        f"action mirred egress redirect dev {ifb_device}"
+        f"tc filter add dev {device} parent ffff: protocol ip u32 match u32 0 0 action "
+        f"mirred egress redirect dev {ifb_device}"
     )
 
     # Create IFB device QDisc and root class limited at download_rate
@@ -151,76 +152,60 @@ def tc_setup(
         f"{ifb_device_qdisc_id}:{ifb_device_root_class_id} htb rate {download_rate}"
     )
 
+    ingress_qdisc = QDisc(ifb_device, ifb_device_qdisc_id, ifb_device_root_class_id)
     # Create default class that all traffic is routed through that doesn't match any
     # other filter
     ifb_default_class_id = tc_add_htb_class(
-        ifb_device,
-        ifb_device_qdisc_id,
-        ifb_device_root_class_id,
-        download_rate,
-        download_minimum_rate,
-        default_priority,
+        ingress_qdisc, download_rate, download_minimum_rate, default_priority,
     )
     run(
         f"tc filter add dev {ifb_device} parent {ifb_device_qdisc_id}: prio 2 protocol "
         f"ip u32 match u32 0 0 flowid {ifb_device_qdisc_id}:{ifb_default_class_id}"
     )
 
-    # Create interface QDisc and root class limited at upload_rate
-    interface_qdisc_id = _get_free_qdisc_id(interface)
-    run(f"tc qdisc add dev {interface} root handle {interface_qdisc_id}: htb")
-    interface_root_class_id = _get_free_class_id(interface, interface_qdisc_id)
+    # Create device QDisc and root class limited at upload_rate
+    device_qdisc_id = _get_free_qdisc_id(device)
+    run(f"tc qdisc add dev {device} root handle {device_qdisc_id}: htb")
+    device_root_class_id = _get_free_class_id(device, device_qdisc_id)
     run(
-        f"tc class add dev {interface} parent {interface_qdisc_id}: classid "
-        f"{interface_qdisc_id}:{interface_root_class_id} htb rate {upload_rate}"
+        f"tc class add dev {device} parent {device_qdisc_id}: classid "
+        f"{device_qdisc_id}:{device_root_class_id} htb rate {upload_rate}"
     )
+    egress_qdisc = QDisc(device, device_qdisc_id, device_root_class_id)
 
     # Create default class that all traffic is routed through that doesn't match any
     # other filter
-    interface_default_class_id = tc_add_htb_class(
-        interface,
-        interface_qdisc_id,
-        interface_root_class_id,
-        upload_rate,
-        upload_minimum_rate,
-        default_priority,
+    device_default_class_id = tc_add_htb_class(
+        egress_qdisc, upload_rate, upload_minimum_rate, default_priority,
     )
     run(
-        f"tc filter add dev {interface} parent {interface_qdisc_id}: prio 2 protocol ip"
-        f" u32 match u32 0 0 flowid {interface_qdisc_id}:{interface_default_class_id}"
+        f"tc filter add dev {device} parent {device_qdisc_id}: prio 2 protocol ip u32 "
+        f"match u32 0 0 flowid {device_qdisc_id}:{device_default_class_id}"
     )
 
-    return (
-        (ifb_device, ifb_device_qdisc_id, ifb_device_root_class_id),
-        (interface, interface_qdisc_id, interface_root_class_id),
-    )
+    return ingress_qdisc, egress_qdisc
 
 
 def tc_add_htb_class(
-    interface: str,
-    parent_qdisc_id: int,
-    parent_class_id: int,
+    qdisc: QDisc,
     ceil: Union[int, str] = MAX_RATE,
     rate: Union[int, str] = MIN_RATE,
     priority: int = 0,
-):
-    class_id = _get_free_class_id(interface, parent_qdisc_id)
+) -> int:
+    class_id = _get_free_class_id(qdisc.device, qdisc.id)
     # rate of 1byte/s is the lowest we can specify. All classes added this way should
     # only be allowed to borrow from the parent class, otherwise it's possible to
     # specify a rate higher than the global rate
     run(
-        f"tc class add dev {interface} parent {parent_qdisc_id}:{parent_class_id} "
-        f"classid {parent_qdisc_id}:{class_id} htb rate {rate} ceil {ceil} prio "
-        f"{priority}"
+        f"tc class add dev {qdisc.device} parent {qdisc.id}:{qdisc.root_class_id} "
+        f"classid {qdisc.id}:{class_id} htb rate {rate} ceil {ceil} prio {priority}"
     )
     return class_id
 
 
-def _get_filter_ids(interface: str) -> Set[str]:
+def _get_filter_ids(device: str) -> Set[str]:
     process = run(
-        f"tc filter show dev {interface}",
-        stdout=subprocess.PIPE,
-        universal_newlines=True,
+        f"tc filter show dev {device}", stdout=subprocess.PIPE, universal_newlines=True,
     )
     ids = set()
     for line in process.stdout.splitlines():
@@ -231,15 +216,13 @@ def _get_filter_ids(interface: str) -> Set[str]:
     return ids
 
 
-def tc_add_u32_filter(
-    interface: str, predicate: str, parent_qdisc_id: int, class_id: int,
-) -> str:
-    before = _get_filter_ids(interface)
+def tc_add_u32_filter(qdisc: QDisc, predicate: str, class_id: int,) -> str:
+    before = _get_filter_ids(qdisc.device)
     run(
-        f"tc filter add dev {interface} protocol ip parent {parent_qdisc_id}: prio 1 "
-        f"u32 {predicate} flowid {parent_qdisc_id}:{class_id}"
+        f"tc filter add dev {qdisc.device} protocol ip parent {qdisc.id}: prio 1 u32 "
+        f"{predicate} flowid {qdisc.id}:{class_id}"
     )
-    after = _get_filter_ids(interface)
+    after = _get_filter_ids(qdisc.device)
 
     difference = after.difference(before)
     if len(difference) > 1:
@@ -247,12 +230,12 @@ def tc_add_u32_filter(
     return difference.pop()
 
 
-def tc_remove_u32_filter(interface: str, filter_id: str, parent_qdisc_id: int) -> None:
+def tc_remove_u32_filter(qdisc: QDisc, filter_id: str) -> None:
     run(
-        f"tc filter del dev {interface} parent {parent_qdisc_id}: handle {filter_id} "
-        "prio 1 protocol ip u32"
+        f"tc filter del dev {qdisc.device} parent {qdisc.id}: handle {filter_id} prio "
+        "1 protocol ip u32"
     )
 
 
-def tc_remove_qdisc(interface: str, parent: str = "root") -> None:
-    run(f"tc qdisc del dev {interface} parent {parent}")
+def tc_remove_qdisc(device: str, parent: str = "root") -> None:
+    run(f"tc qdisc del dev {device} parent {parent}")

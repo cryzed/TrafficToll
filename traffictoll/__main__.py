@@ -3,7 +3,7 @@ import sys
 from loguru import logger
 
 from .cli import get_argument_parser, main as cli_main
-from .exceptions import DependencyError
+from .exceptions import ConfigError, DependencyError
 
 
 def main() -> None:
@@ -17,6 +17,8 @@ def main() -> None:
         cli_main(arguments)
     except KeyboardInterrupt:
         logger.info("Aborted")
+    except ConfigError as error:
+        logger.error("Invalid configuration: {}", error)
     except DependencyError as error:
         logger.error("Missing dependency: {}", error)
     except Exception:

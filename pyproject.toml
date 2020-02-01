@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "TrafficToll"
-version = "1.3.0"
+version = "1.3.1"
 description = "NetLimiter-like bandwidth limiting and QoS for Linux"
-authors = ["cryzed <cryzed@googlemail.com>"]
+authors = ["Chris Braun <cryzed@googlemail.com>"]
 
 license='GPLv3'
 readme='README.md'
@@ -15,7 +15,7 @@ include=['LICENSE', 'example.yaml']
 tt = 'traffictoll.__main__:main'
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.6"
 psutil = "^5.6.7"
 loguru = "^0.4.1"
 "ruamel.yamL" = "^0.16.6"

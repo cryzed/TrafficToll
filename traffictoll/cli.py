@@ -32,35 +32,48 @@ class _TrafficType(enum.Enum):
 
 
 def get_argument_parser() -> argparse.ArgumentParser:
-    argument_parser = argparse.ArgumentParser()
-    argument_parser.add_argument("device")
-    argument_parser.add_argument("config")
-    argument_parser.add_argument("--delay", "-d", type=float, default=1)
+    argument_parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    argument_parser.add_argument(
+        "device", help="The network device to be traffic shaped"
+    )
+    argument_parser.add_argument("config", help="The configuration file")
+    argument_parser.add_argument(
+        "--delay",
+        "-d",
+        type=float,
+        default=1,
+        help="The delay in seconds between checks for changed connections in monitored "
+        "processes",
+    )
     argument_parser.add_argument(
         "--logging-level",
         "-l",
         choices={"TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"},
         default="INFO",
+        help="The logging level",
     )
     return argument_parser
 
 
-def _clean_up(ingress_interface: str, egress_interface: str) -> None:
+def _clean_up(ingress_device: str, egress_device: str) -> None:
     logger.info("Cleaning up QDiscs")
-    tc_remove_qdisc(ingress_interface)
-    tc_remove_qdisc(egress_interface)
-    tc_remove_qdisc(egress_interface, INGRESS_QDISC_PARENT_ID)
+    tc_remove_qdisc(ingress_device)
+    tc_remove_qdisc(egress_device)
+    tc_remove_qdisc(egress_device, INGRESS_QDISC_PARENT_ID)
 
 
+# TODO: Check configuration and raise ConfigError
 def main(arguments: argparse.Namespace) -> None:
     with open(arguments.config, "r", encoding=CONFIG_ENCODING) as file:
         config = YAML().load(file)
 
-    # TODO: Parse download rate and raise ConfigError appropriately
     config_global_download_rate = config.get("download")
     config_global_upload_rate = config.get("upload")
 
-    # TODO: Add option to determine max download/upload rate?
+    # TODO: Add option to determine max download and upload rate automatically using
+    #  speedtest-cli and similar tools
     if config_global_download_rate is None:
         logger.info(
             "No global download rate specified, download traffic prioritization won't "
@@ -87,7 +100,6 @@ def main(arguments: argparse.Namespace) -> None:
     for name, process in (config.get("processes", {}) or {}).items():
         lowest_priority = max(process.get("upload-priority", -1), lowest_priority)
         lowest_priority = max(process.get("download-priority", -1), lowest_priority)
-
     lowest_priority += 1
 
     config_global_download_minimum_rate = config.get("download-minimum")
@@ -96,13 +108,6 @@ def main(arguments: argparse.Namespace) -> None:
         if config_global_download_minimum_rate is None
         else config_global_download_minimum_rate
     )
-    config_global_upload_minimum_rate = config.get("upload-minimum")
-    global_upload_minimum_rate = (
-        GLOBAL_MINIMUM_UPLOAD_RATE
-        if config_global_upload_minimum_rate is None
-        else config_global_upload_minimum_rate
-    )
-
     if config_global_download_rate is not None:
         logger.info(
             "Setting up global class with max download rate: {} (minimum: {}) and "
@@ -118,6 +123,13 @@ def main(arguments: argparse.Namespace) -> None:
             lowest_priority,
             global_download_minimum_rate,
         )
+
+    config_global_upload_minimum_rate = config.get("upload-minimum")
+    global_upload_minimum_rate = (
+        GLOBAL_MINIMUM_UPLOAD_RATE
+        if config_global_upload_minimum_rate is None
+        else config_global_upload_minimum_rate
+    )
     if config_global_upload_rate is not None:
         logger.info(
             "Setting up global class with max upload rate: {} (minimum: {}) and "
@@ -134,7 +146,7 @@ def main(arguments: argparse.Namespace) -> None:
             global_upload_minimum_rate,
         )
 
-    ingress, egress = tc_setup(
+    ingress_qdisc, egress_qdisc = tc_setup(
         arguments.device,
         global_download_rate,
         global_download_minimum_rate,
@@ -142,10 +154,7 @@ def main(arguments: argparse.Namespace) -> None:
         global_upload_minimum_rate,
         lowest_priority,
     )
-    ingress_interface, ingress_qdisc_id, ingress_root_class_id = ingress
-    egress_interface, egress_qdisc_id, egress_root_class_id = egress
-
-    atexit.register(_clean_up, ingress_interface, egress_interface)
+    atexit.register(_clean_up, ingress_qdisc.device, egress_qdisc.device)
 
     process_filter_predicates = []
     class_ids: Dict[_TrafficType, Dict[str, int]] = {
@@ -168,11 +177,17 @@ def main(arguments: argparse.Namespace) -> None:
 
         # Set up classes for download/upload limiting
         config_download_rate = process.get("download")
+        config_download_minimum_rate = process.get("download-minimum")
         config_download_priority = process.get("download-priority")
         download_rate = (
             global_download_rate
             if config_download_rate is None
             else config_download_rate
+        )
+        download_minimum_rate = (
+            MINIMUM_DOWNLOAD_RATE
+            if config_download_minimum_rate is None
+            else config_download_minimum_rate
         )
         download_priority = (
             lowest_priority
@@ -181,27 +196,20 @@ def main(arguments: argparse.Namespace) -> None:
         )
 
         config_upload_rate = process.get("upload")
+        config_upload_minimum_rate = process.get("upload-minimum")
         config_upload_priority = process.get("upload-priority")
         upload_rate = (
             global_upload_rate if config_upload_rate is None else config_upload_rate
+        )
+        upload_minimum_rate = (
+            MINIMUM_UPLOAD_RATE
+            if config_upload_minimum_rate is None
+            else config_upload_minimum_rate
         )
         upload_priority = (
             lowest_priority
             if config_upload_priority is None
             else config_upload_priority
-        )
-
-        config_download_minimum_rate = process.get("download-minimum")
-        download_minimum_rate = (
-            MINIMUM_DOWNLOAD_RATE
-            if config_download_minimum_rate is None
-            else config_download_minimum_rate
-        )
-        config_upload_minimum_rate = process.get("upload-minimum")
-        upload_minimum_rate = (
-            MINIMUM_UPLOAD_RATE
-            if config_upload_minimum_rate is None
-            else config_upload_minimum_rate
         )
 
         if config_download_rate is not None:
@@ -213,15 +221,10 @@ def main(arguments: argparse.Namespace) -> None:
                 download_minimum_rate,
                 download_priority,
             )
-            egress_class_id = tc_add_htb_class(
-                ingress_interface,
-                ingress_qdisc_id,
-                ingress_root_class_id,
-                download_rate,
-                download_minimum_rate,
-                download_priority,
+            ingress_class_id = tc_add_htb_class(
+                ingress_qdisc, download_rate, download_minimum_rate, download_priority,
             )
-            class_ids[_TrafficType.Ingress][name] = egress_class_id
+            class_ids[_TrafficType.Ingress][name] = ingress_class_id
         elif config_download_priority is not None:
             logger.info(
                 "Setting up class for: {!r} with unlimited download rate (minimum: {}) "
@@ -230,15 +233,10 @@ def main(arguments: argparse.Namespace) -> None:
                 download_minimum_rate,
                 download_priority,
             )
-            egress_class_id = tc_add_htb_class(
-                ingress_interface,
-                ingress_qdisc_id,
-                ingress_root_class_id,
-                download_rate,
-                download_minimum_rate,
-                download_priority,
+            ingress_class_id = tc_add_htb_class(
+                ingress_qdisc, download_rate, download_minimum_rate, download_priority,
             )
-            class_ids[_TrafficType.Ingress][name] = egress_class_id
+            class_ids[_TrafficType.Ingress][name] = ingress_class_id
 
         if config_upload_rate is not None:
             logger.info(
@@ -249,15 +247,10 @@ def main(arguments: argparse.Namespace) -> None:
                 upload_minimum_rate,
                 upload_priority,
             )
-            ingress_class_id = tc_add_htb_class(
-                egress_interface,
-                egress_qdisc_id,
-                egress_root_class_id,
-                upload_rate,
-                upload_minimum_rate,
-                upload_priority,
+            egress_class_id = tc_add_htb_class(
+                egress_qdisc, upload_rate, upload_minimum_rate, upload_priority,
             )
-            class_ids[_TrafficType.Egress][name] = ingress_class_id
+            class_ids[_TrafficType.Egress][name] = egress_class_id
         elif config_upload_priority is not None:
             logger.info(
                 "Setting up class for: {!r} with unlimited upload rate (minimum: {}) "
@@ -266,15 +259,10 @@ def main(arguments: argparse.Namespace) -> None:
                 upload_minimum_rate,
                 upload_priority,
             )
-            ingress_class_id = tc_add_htb_class(
-                egress_interface,
-                egress_qdisc_id,
-                egress_root_class_id,
-                upload_rate,
-                upload_minimum_rate,
-                upload_priority,
+            egress_class_id = tc_add_htb_class(
+                egress_qdisc, upload_rate, upload_minimum_rate, upload_priority,
             )
-            class_ids[_TrafficType.Egress][name] = ingress_class_id
+            class_ids[_TrafficType.Egress][name] = egress_class_id
 
     port_to_filter_id: Dict[_TrafficType, Dict[int, str]] = {
         _TrafficType.Ingress: {},
@@ -283,28 +271,25 @@ def main(arguments: argparse.Namespace) -> None:
 
     def add_ingress_filter(port: int, class_id: int) -> None:
         filter_id = tc_add_u32_filter(
-            ingress_interface,
-            f"match ip dport {port} 0xffff",
-            ingress_qdisc_id,
-            class_id,
+            ingress_qdisc, f"match ip dport {port} 0xffff", class_id,
         )
         port_to_filter_id[_TrafficType.Ingress][port] = filter_id
 
     def add_egress_filter(port: int, class_id: int) -> None:
         filter_id = tc_add_u32_filter(
-            egress_interface, f"match ip sport {port} 0xffff", egress_qdisc_id, class_id
+            egress_qdisc, f"match ip sport {port} 0xffff", class_id,
         )
         port_to_filter_id[_TrafficType.Egress][port] = filter_id
 
     def remove_filters(port: int) -> None:
         ingress_filter_id = port_to_filter_id[_TrafficType.Ingress].get(port)
         if ingress_filter_id:
-            tc_remove_u32_filter(ingress_interface, ingress_filter_id, ingress_qdisc_id)
+            tc_remove_u32_filter(ingress_qdisc, ingress_filter_id)
             del port_to_filter_id[_TrafficType.Ingress][port]
 
         egress_filter_id = port_to_filter_id[_TrafficType.Egress].get(port)
         if egress_filter_id:
-            tc_remove_u32_filter(egress_interface, egress_filter_id, egress_qdisc_id)
+            tc_remove_u32_filter(egress_qdisc, egress_filter_id)
             del port_to_filter_id[_TrafficType.Egress][port]
 
     filtered_ports: DefaultDict[str, Set[int]] = collections.defaultdict(set)
