@@ -63,7 +63,8 @@ def main(arguments: argparse.Namespace) -> None:
     # TODO: Add option to determine max download/upload rate?
     if config_global_download_rate is None:
         logger.info(
-            "No global download rate specified, download traffic prioritization won't work"
+            "No global download rate specified, download traffic prioritization won't "
+            "work"
         )
         global_download_rate = MAX_RATE
     else:

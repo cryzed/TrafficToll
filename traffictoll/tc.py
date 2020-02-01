@@ -210,7 +210,8 @@ def tc_add_htb_class(
     # specify a rate higher than the global rate
     run(
         f"tc class add dev {interface} parent {parent_qdisc_id}:{parent_class_id} "
-        f"classid {parent_qdisc_id}:{class_id} htb rate {rate} ceil {ceil} prio {priority}"
+        f"classid {parent_qdisc_id}:{class_id} htb rate {rate} ceil {ceil} prio "
+        f"{priority}"
     )
     return class_id
 
