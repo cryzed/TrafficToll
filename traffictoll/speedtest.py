@@ -19,7 +19,6 @@ SpeedTestResult: Tuple[int, int] = collections.namedtuple(
 class _SpeedTestProvider(enum.Enum):
     Ookla = enum.auto()
     Sivel = enum.auto()
-    Unknown = enum.auto()
 
 
 # https://www.speedtest.net/apps/cli
@@ -64,7 +63,6 @@ def _get_speedtest_provider() -> _SpeedTestProvider:
         return _SpeedTestProvider.Ookla
     elif process.stdout.startswith("speedtest-cli"):
         return _SpeedTestProvider.Sivel
-    return _SpeedTestProvider.Unknown
 
 
 def test_speed() -> Optional[SpeedTestResult]:
