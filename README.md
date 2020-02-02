@@ -56,6 +56,14 @@ upload: 1mbps
 download-minimum: 100kbps
 upload-minimum: 10kbps
 
+# The global download and upload priority. This will be the priority for traffic that is
+# not created by any of the processes. By default it will always be the lowest priority
+# if any of the processes specify a download or upload priority explicitly, otherwise
+# all traffic will have the same priority.
+#download-priority: 0
+#upload-priority: 0
+
+
 # A list of processes you want to match and their respective settings
 processes:
   # You can name the process what you want, it is only used to identify it on the CLI
