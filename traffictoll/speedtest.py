@@ -55,7 +55,7 @@ def _sivel_speedtest_cli() -> SpeedTestResult:
         )
 
 
-def _get_speedtest_provider() -> _SpeedTestProvider:
+def _get_speedtest_provider() -> Optional[_SpeedTestProvider]:
     process = run(
         _SPEEDTEST_VERSION_COMMAND, stdout=subprocess.PIPE, universal_newlines=True
     )
