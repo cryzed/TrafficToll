@@ -1,0 +1,2 @@
+- Use a sudo background loop to avoid having to run TrafficToll as root, and therefore
+  the speedtest dependencies
