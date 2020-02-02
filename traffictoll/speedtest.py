@@ -7,9 +7,9 @@ from typing import Optional
 from .exceptions import DependencyOutputError
 from .utils import run
 
-SPEEDTEST_VERSION_COMMAND = "speedtest --version"
-OOKLA_SPEEDTEST_COMMAND = "speedtest --format=json"
-SIVEL_SPEEDTEST_COMMAND = "speedtest --json"
+_SPEEDTEST_VERSION_COMMAND = "speedtest --version"
+_OOKLA_SPEEDTEST_COMMAND = "speedtest --format=json"
+_SIVEL_SPEEDTEST_COMMAND = "speedtest --json"
 
 SpeedTestResult = collections.namedtuple("SpeedTest", ["download_rate", "upload_rate"])
 
@@ -23,7 +23,7 @@ class _SpeedTestProvider(enum.Enum):
 # https://www.speedtest.net/apps/cli
 def _ookla_speedtest_cli() -> SpeedTestResult:
     process = run(
-        OOKLA_SPEEDTEST_COMMAND, stdout=subprocess.PIPE, universal_newlines=True,
+        _OOKLA_SPEEDTEST_COMMAND, stdout=subprocess.PIPE, universal_newlines=True,
     )
 
     try:
@@ -33,7 +33,7 @@ def _ookla_speedtest_cli() -> SpeedTestResult:
         )
     except (json.JSONDecodeError, KeyError):
         raise DependencyOutputError(
-            f"Command: {OOKLA_SPEEDTEST_COMMAND!r} returned unrecognized output: "
+            f"Command: {_OOKLA_SPEEDTEST_COMMAND!r} returned unrecognized output: "
             f"{process.stdout!r}"
         )
 
@@ -41,7 +41,7 @@ def _ookla_speedtest_cli() -> SpeedTestResult:
 # https://github.com/sivel/speedtest-cli
 def _sivel_speedtest_cli() -> SpeedTestResult:
     process = run(
-        SIVEL_SPEEDTEST_COMMAND, stdout=subprocess.PIPE, universal_newlines=True
+        _SIVEL_SPEEDTEST_COMMAND, stdout=subprocess.PIPE, universal_newlines=True
     )
 
     try:
@@ -49,14 +49,14 @@ def _sivel_speedtest_cli() -> SpeedTestResult:
         return SpeedTestResult(round(result["download"]), round(result["upload"]))
     except (json.JSONDecodeError, KeyError):
         raise DependencyOutputError(
-            f"Command: {SIVEL_SPEEDTEST_COMMAND!r} returned unrecognized output: "
+            f"Command: {_SIVEL_SPEEDTEST_COMMAND!r} returned unrecognized output: "
             f"{process.stdout!r}"
         )
 
 
 def _get_speedtest_provider() -> _SpeedTestProvider:
     process = run(
-        SPEEDTEST_VERSION_COMMAND, stdout=subprocess.PIPE, universal_newlines=True
+        _SPEEDTEST_VERSION_COMMAND, stdout=subprocess.PIPE, universal_newlines=True
     )
     if process.stdout.startswith("Speedtest by Ookla"):
         return _SpeedTestProvider.Ookla
