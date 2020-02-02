@@ -6,25 +6,37 @@ from traffictoll.utils import run
 
 
 # https://www.speedtest.net/apps/cli
-def _ookla_speedtest_cli() -> Tuple[int, int]:
+def _ookla_speedtest_cli() -> Optional[Tuple[int, int]]:
     process = run(
         "speedtest --format=json", stdout=subprocess.PIPE, universal_newlines=True,
     )
-    result = json.loads(process.stdout)
-    return result["download"]["bandwidth"], result["upload"]["bandwidth"]
+
+    try:
+        result = json.loads(process.stdout)
+        return result["download"]["bandwidth"], result["upload"]["bandwidth"]
+    except (json.JSONDecodeError, KeyError):
+        return None
 
 
 # https://github.com/sivel/speedtest-cli
-def _sivel_speedtest_cli() -> Tuple[int, int]:
+def _sivel_speedtest_cli() -> Optional[Tuple[int, int]]:
     process = run("speedtest --json", stdout=subprocess.PIPE, universal_newlines=True)
-    result = json.loads(process.stdout)
-    return round(result["download"]), round(result["upload"])
+
+    try:
+        result = json.loads(process.stdout)
+        return round(result["download"]), round(result["upload"])
+    except (json.JSONDecodeError, KeyError):
+        pass
 
 
-def test_speed() -> Tuple[int, int]:
+def test_speed() -> Optional[Tuple[int, int]]:
     process = run(
         "speedtest --version", stdout=subprocess.PIPE, universal_newlines=True
     )
+
+    lines = process.stdout.splitlines()
+    if not lines:
+        return
 
     first_line = process.stdout.splitlines()[0]
     if first_line.startswith("Speedtest by Ookla"):

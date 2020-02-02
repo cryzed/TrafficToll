@@ -78,14 +78,21 @@ def main(arguments: argparse.Namespace) -> None:
     with open(arguments.config, "r", encoding=CONFIG_ENCODING) as file:
         config = YAML().load(file)
 
+    config_global_download_rate = config.get("download")
+    config_global_upload_rate = config.get("upload")
     if arguments.speed_test:
         logger.info("Running speed test...")
         results = test_speed()
-        logger.info("Determined download speed: {}bps, upload speed: {}bps", *results)
-        config_global_download_rate, config_global_upload_rate = results
-    else:
-        config_global_download_rate = config.get("download")
-        config_global_upload_rate = config.get("upload")
+        if results:
+            logger.info(
+                "Determined download speed: {}bps, upload speed: {}bps", *results
+            )
+            config_global_download_rate, config_global_upload_rate = results
+        else:
+            logger.error(
+                "Failed to automatically determine download and upload speed, falling "
+                "back to configuration values"
+            )
 
     if config_global_download_rate is None:
         logger.info(
