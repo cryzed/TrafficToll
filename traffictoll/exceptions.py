@@ -1,6 +1,14 @@
-class DependencyError(Exception):
+class TrafficTollException(Exception):
     pass
 
 
-class ConfigError(Exception):
+class MissingDependencyError(TrafficTollException):
+    pass
+
+
+class DependencyOutputError(TrafficTollException):
+    pass
+
+
+class ConfigError(TrafficTollException):
     pass

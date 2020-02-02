@@ -1,49 +1,74 @@
+import collections
+import enum
 import json
 import subprocess
-from typing import Tuple, Optional
+from typing import Optional
 
-from .exceptions import DependencyError
+from .exceptions import DependencyOutputError
 from .utils import run
+
+SPEEDTEST_VERSION_COMMAND = "speedtest --version"
+OOKLA_SPEEDTEST_COMMAND = "speedtest --format=json"
+SIVEL_SPEEDTEST_COMMAND = "speedtest --json"
+
+SpeedTestResult = collections.namedtuple("SpeedTest", ["download_rate", "upload_rate"])
+
+
+class _SpeedTestProvider(enum.Enum):
+    Ookla = enum.auto()
+    Sivel = enum.auto()
+    Unknown = enum.auto()
 
 
 # https://www.speedtest.net/apps/cli
-def _ookla_speedtest_cli() -> Optional[Tuple[int, int]]:
+def _ookla_speedtest_cli() -> SpeedTestResult:
     process = run(
-        "speedtest --format=json", stdout=subprocess.PIPE, universal_newlines=True,
+        OOKLA_SPEEDTEST_COMMAND, stdout=subprocess.PIPE, universal_newlines=True,
     )
 
     try:
         result = json.loads(process.stdout)
-        return result["download"]["bandwidth"], result["upload"]["bandwidth"]
+        return SpeedTestResult(
+            result["download"]["bandwidth"], result["upload"]["bandwidth"]
+        )
     except (json.JSONDecodeError, KeyError):
-        return None
+        raise DependencyOutputError(
+            f"Command: {OOKLA_SPEEDTEST_COMMAND!r} returned unrecognized output: "
+            f"{process.stdout!r}"
+        )
 
 
 # https://github.com/sivel/speedtest-cli
-def _sivel_speedtest_cli() -> Optional[Tuple[int, int]]:
-    process = run("speedtest --json", stdout=subprocess.PIPE, universal_newlines=True)
+def _sivel_speedtest_cli() -> SpeedTestResult:
+    process = run(
+        SIVEL_SPEEDTEST_COMMAND, stdout=subprocess.PIPE, universal_newlines=True
+    )
 
     try:
         result = json.loads(process.stdout)
-        return round(result["download"]), round(result["upload"])
+        return SpeedTestResult(round(result["download"]), round(result["upload"]))
     except (json.JSONDecodeError, KeyError):
-        pass
-
-
-def test_speed() -> Optional[Tuple[int, int]]:
-    try:
-        process = run(
-            "speedtest --version", stdout=subprocess.PIPE, universal_newlines=True
+        raise DependencyOutputError(
+            f"Command: {SIVEL_SPEEDTEST_COMMAND!r} returned unrecognized output: "
+            f"{process.stdout!r}"
         )
-    except DependencyError:
-        return
 
-    lines = process.stdout.splitlines()
-    if not lines:
-        return
 
-    first_line = process.stdout.splitlines()[0]
-    if first_line.startswith("Speedtest by Ookla"):
+def _get_speedtest_provider() -> _SpeedTestProvider:
+    process = run(
+        SPEEDTEST_VERSION_COMMAND, stdout=subprocess.PIPE, universal_newlines=True
+    )
+    if process.stdout.startswith("Speedtest by Ookla"):
+        return _SpeedTestProvider.Ookla
+    elif process.stdout.startswith("speedtest-cli"):
+        return _SpeedTestProvider.Sivel
+    return _SpeedTestProvider.Unknown
+
+
+def test_speed() -> Optional[SpeedTestResult]:
+    speedtest_version = _get_speedtest_provider()
+
+    if speedtest_version is _SpeedTestProvider.Ookla:
         return _ookla_speedtest_cli()
-    elif first_line.startswith("speedtest-cli"):
+    elif speedtest_version is _SpeedTestProvider.Sivel:
         return _sivel_speedtest_cli()

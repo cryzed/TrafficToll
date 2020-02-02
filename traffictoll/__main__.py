@@ -3,7 +3,7 @@ import sys
 from loguru import logger
 
 from .cli import get_argument_parser, main as cli_main
-from .exceptions import ConfigError, DependencyError
+from .exceptions import ConfigError, MissingDependencyError
 
 
 def main() -> None:
@@ -19,7 +19,7 @@ def main() -> None:
         logger.info("Aborted")
     except ConfigError as error:
         logger.error("Invalid configuration: {}", error)
-    except DependencyError as error:
+    except MissingDependencyError as error:
         logger.error("Missing dependency: {}", error)
     except Exception:
         logger.exception("Unexpected error occurred:")

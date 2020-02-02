@@ -6,7 +6,7 @@ from typing import Optional
 
 from loguru import logger
 
-from .exceptions import DependencyError
+from .exceptions import MissingDependencyError
 
 
 # Cache the full executable path just in case subprocess.Popen doesn't
@@ -19,7 +19,7 @@ def run(command: str, **popen_kwargs) -> subprocess.CompletedProcess:
     executable, *arguments = shlex.split(command)
     path = _which(executable)
     if not path:
-        raise DependencyError(f"Executable for command: {command!r} not found")
+        raise MissingDependencyError(f"Executable for command: {command!r} not found")
 
     logger.debug(command)
     return subprocess.run([path] + arguments, **popen_kwargs)

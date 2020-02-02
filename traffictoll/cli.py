@@ -8,6 +8,7 @@ from typing import Dict, DefaultDict, Set
 from loguru import logger
 from ruamel.yaml import YAML
 
+from .exceptions import DependencyOutputError, MissingDependencyError
 from .net import ProcessFilterPredicate, filter_net_connections
 from .speedtest import test_speed
 from .tc import (
@@ -82,12 +83,21 @@ def main(arguments: argparse.Namespace) -> None:
     config_global_upload_rate = config.get("upload")
     if arguments.speed_test:
         logger.info("Running speed test...")
-        results = test_speed()
-        if results:
+
+        try:
+            result = test_speed()
+        except MissingDependencyError as error:
+            logger.error("Missing dependency: {}", error)
+            result = None
+        except DependencyOutputError as error:
+            logger.error("Dependency output error: {}", error)
+            result = None
+
+        if result:
             logger.info(
-                "Determined download speed: {}bps, upload speed: {}bps", *results
+                "Determined download speed: {}bps, upload speed: {}bps", *result
             )
-            config_global_download_rate, config_global_upload_rate = results
+            config_global_download_rate, config_global_upload_rate = result
         else:
             logger.error(
                 "Failed to automatically determine download and upload speed, falling "
