@@ -122,6 +122,9 @@ def main(arguments: argparse.Namespace) -> None:
         lowest_priority = max(process.get("download-priority", -1), lowest_priority)
     lowest_priority += 1
 
+    global_download_priority = config.get("download-priority", lowest_priority)
+    global_upload_priority = config.get("upload-priority", lowest_priority)
+
     config_global_download_minimum_rate = config.get("download-minimum")
     global_download_minimum_rate = (
         GLOBAL_MINIMUM_DOWNLOAD_RATE
@@ -134,14 +137,14 @@ def main(arguments: argparse.Namespace) -> None:
             "priority: {}",
             global_download_rate,
             global_download_minimum_rate,
-            lowest_priority,
+            global_download_priority,
         )
     else:
         logger.info(
             "Setting up global class with unlimited download rate (minimum: {}) and "
             "priority: {}",
-            lowest_priority,
             global_download_minimum_rate,
+            global_download_priority,
         )
 
     config_global_upload_minimum_rate = config.get("upload-minimum")
@@ -156,14 +159,14 @@ def main(arguments: argparse.Namespace) -> None:
             "priority: {}",
             global_upload_rate,
             global_upload_minimum_rate,
-            lowest_priority,
+            global_upload_priority,
         )
     else:
         logger.info(
             "Setting up global class with unlimited upload rate (minimum: {}) and "
             "priority: {}",
-            lowest_priority,
             global_upload_minimum_rate,
+            global_upload_priority,
         )
 
     ingress_qdisc, egress_qdisc = tc_setup(
@@ -172,7 +175,8 @@ def main(arguments: argparse.Namespace) -> None:
         global_download_minimum_rate,
         global_upload_rate,
         global_upload_minimum_rate,
-        lowest_priority,
+        global_download_priority,
+        global_upload_priority,
     )
     atexit.register(_clean_up, ingress_qdisc.device, egress_qdisc.device)
 

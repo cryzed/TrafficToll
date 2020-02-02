@@ -133,7 +133,8 @@ def tc_setup(
     download_minimum_rate: Union[int, str] = MIN_RATE,
     upload_rate: Union[int, str] = MAX_RATE,
     upload_minimum_rate: Union[int, str] = MIN_RATE,
-    default_priority: int = 0,
+    default_download_priority: int = 0,
+    default_upload_priority: int = 0,
 ) -> Tuple[QDisc, QDisc]:
     # Set up IFB device
     run(f"tc qdisc add dev {device} handle ffff: ingress")
@@ -156,7 +157,7 @@ def tc_setup(
     # Create default class that all traffic is routed through that doesn't match any
     # other filter
     ifb_default_class_id = tc_add_htb_class(
-        ingress_qdisc, download_rate, download_minimum_rate, default_priority,
+        ingress_qdisc, download_rate, download_minimum_rate, default_download_priority,
     )
     run(
         f"tc filter add dev {ifb_device} parent {ifb_device_qdisc_id}: prio 2 protocol "
@@ -176,7 +177,7 @@ def tc_setup(
     # Create default class that all traffic is routed through that doesn't match any
     # other filter
     device_default_class_id = tc_add_htb_class(
-        egress_qdisc, upload_rate, upload_minimum_rate, default_priority,
+        egress_qdisc, upload_rate, upload_minimum_rate, default_upload_priority,
     )
     run(
         f"tc filter add dev {device} parent {device_qdisc_id}: prio 2 protocol ip u32 "
