@@ -61,7 +61,7 @@ def get_argument_parser() -> argparse.ArgumentParser:
         "-s",
         action="store_true",
         help="Automatically determine upload and download speed before start. Make sure"
-        ' to run "speedtest --accept-license" as root beforehand if you are using the'
+        ' to run "speedtest --accept-license" as root beforehand if you are using the '
         'official "Ookla Speedtest CLI".',
     )
     return argument_parser
