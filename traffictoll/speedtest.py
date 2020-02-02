@@ -2,7 +2,7 @@ import collections
 import enum
 import json
 import subprocess
-from typing import Optional
+from typing import Optional, Tuple
 
 from .exceptions import DependencyOutputError
 from .utils import run
@@ -11,7 +11,9 @@ _SPEEDTEST_VERSION_COMMAND = "speedtest --version"
 _OOKLA_SPEEDTEST_COMMAND = "speedtest --format=json"
 _SIVEL_SPEEDTEST_COMMAND = "speedtest --json"
 
-SpeedTestResult = collections.namedtuple("SpeedTest", ["download_rate", "upload_rate"])
+SpeedTestResult: Tuple[int, int] = collections.namedtuple(
+    "SpeedTest", ["download_rate", "upload_rate"]
+)
 
 
 class _SpeedTestProvider(enum.Enum):
