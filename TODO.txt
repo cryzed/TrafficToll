@@ -1,2 +1,4 @@
 - Use a sudo background loop to avoid having to run TrafficToll as root, and therefore
   the speedtest dependencies
+- Handle disappearing network interfaces (mostly TUN/TAP devices) and automatically
+  reapply traffic shaping once they reappear
