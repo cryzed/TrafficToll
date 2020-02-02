@@ -9,6 +9,7 @@ from loguru import logger
 from ruamel.yaml import YAML
 
 from .net import ProcessFilterPredicate, filter_net_connections
+from .speed import test_speed
 from .tc import (
     MAX_RATE,
     INGRESS_QDISC_PARENT_ID,
@@ -54,6 +55,14 @@ def get_argument_parser() -> argparse.ArgumentParser:
         default="INFO",
         help="The logging level",
     )
+    argument_parser.add_argument(
+        "--speed-test",
+        "-s",
+        action="store_true",
+        help="Automatically determine upload and download speed before start. Make sure"
+        ' to run "speedtest --accept-license" beforehand if you are using the official'
+        ' "Ookla Speedtest CLI".',
+    )
     return argument_parser
 
 
@@ -69,11 +78,15 @@ def main(arguments: argparse.Namespace) -> None:
     with open(arguments.config, "r", encoding=CONFIG_ENCODING) as file:
         config = YAML().load(file)
 
-    config_global_download_rate = config.get("download")
-    config_global_upload_rate = config.get("upload")
+    if arguments.speed_test:
+        logger.info("Running speed test...")
+        results = test_speed()
+        logger.info("Determined download speed: {}bps, upload speed: {}bps", *results)
+        config_global_download_rate, config_global_upload_rate = results
+    else:
+        config_global_download_rate = config.get("download")
+        config_global_upload_rate = config.get("upload")
 
-    # TODO: Add option to determine max download and upload rate automatically using
-    #  speedtest-cli and similar tools
     if config_global_download_rate is None:
         logger.info(
             "No global download rate specified, download traffic prioritization won't "
