@@ -9,7 +9,7 @@ from loguru import logger
 from ruamel.yaml import YAML
 
 from .net import ProcessFilterPredicate, filter_net_connections
-from .speed import test_speed
+from .speedtest import test_speed
 from .tc import (
     MAX_RATE,
     INGRESS_QDISC_PARENT_ID,

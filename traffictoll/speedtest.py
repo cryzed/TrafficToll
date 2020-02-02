@@ -2,7 +2,8 @@ import json
 import subprocess
 from typing import Tuple, Optional
 
-from traffictoll.utils import run
+from .exceptions import DependencyError
+from .utils import run
 
 
 # https://www.speedtest.net/apps/cli
@@ -30,9 +31,12 @@ def _sivel_speedtest_cli() -> Optional[Tuple[int, int]]:
 
 
 def test_speed() -> Optional[Tuple[int, int]]:
-    process = run(
-        "speedtest --version", stdout=subprocess.PIPE, universal_newlines=True
-    )
+    try:
+        process = run(
+            "speedtest --version", stdout=subprocess.PIPE, universal_newlines=True
+        )
+    except DependencyError:
+        return
 
     lines = process.stdout.splitlines()
     if not lines:
