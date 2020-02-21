@@ -187,9 +187,10 @@ When you terminate `tt` using Ctrl+C all changes to the traffic scheduling will 
 reverted, allowing you to easily update the config and apply new limits.
 
 # Installation
-`$ pip install traffictoll`
+`$ pip3 install traffictoll`
 
-`tt` has to be run as root.
+Make sure to use the `pip` executable provided by your Python 3 installation. That might
+be simply `pip` or `pip3`, depending on your system. `tt` has to be run as root.
 
 # Screenshots
 Because a picture is always nice, even for CLI applications:
