@@ -34,6 +34,7 @@ class _TrafficType(enum.Enum):
 
 
 def get_argument_parser() -> argparse.ArgumentParser:
+    # noinspection PyTypeChecker
     argument_parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -331,8 +332,8 @@ def main(arguments: argparse.Namespace) -> None:
         filtered_connections = filter_net_connections(process_filter_predicates)
         for name, connections in filtered_connections.items():
             ports = set(connection.laddr.port for connection in connections)
-            ingress_class_id = class_ids[_TrafficType.Ingress].get(name)
-            egress_class_id = class_ids[_TrafficType.Egress].get(name)
+            active_ingress_class_id = class_ids[_TrafficType.Ingress].get(name)
+            active_egress_class_id = class_ids[_TrafficType.Egress].get(name)
 
             # Add new port filters
             new_ports = sorted(ports.difference(filtered_ports[name]))
@@ -343,10 +344,10 @@ def main(arguments: argparse.Namespace) -> None:
                     ", ".join(map(str, new_ports)),
                 )
                 for port in new_ports:
-                    if ingress_class_id:
-                        add_ingress_filter(port, ingress_class_id)
-                    if egress_class_id:
-                        add_egress_filter(port, egress_class_id)
+                    if active_ingress_class_id:
+                        add_ingress_filter(port, active_ingress_class_id)
+                    if active_egress_class_id:
+                        add_egress_filter(port, active_egress_class_id)
 
             # Remove old port filters
             freed_ports = sorted(filtered_ports[name].difference(ports))

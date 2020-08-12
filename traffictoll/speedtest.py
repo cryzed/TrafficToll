@@ -1,8 +1,8 @@
-import collections
 import enum
 import json
 import subprocess
-from typing import Optional, Tuple
+import typing
+from typing import Optional
 
 from .exceptions import DependencyOutputError
 from .utils import run
@@ -11,8 +11,8 @@ _SPEEDTEST_VERSION_COMMAND = "speedtest --version"
 _OOKLA_SPEEDTEST_COMMAND = "speedtest --format=json"
 _SIVEL_SPEEDTEST_COMMAND = "speedtest --json"
 
-SpeedTestResult: Tuple[int, int] = collections.namedtuple(
-    "SpeedTest", ["download_rate", "upload_rate"]
+SpeedTestResult = typing.NamedTuple(
+    "SpeedTest", [("download_rate", int), ("upload_rate", int)]
 )
 
 
@@ -64,6 +64,8 @@ def _get_speedtest_provider() -> Optional[_SpeedTestProvider]:
     elif process.stdout.startswith("speedtest-cli"):
         return _SpeedTestProvider.Sivel
 
+    return None
+
 
 def test_speed() -> Optional[SpeedTestResult]:
     speedtest_version = _get_speedtest_provider()
@@ -72,3 +74,5 @@ def test_speed() -> Optional[SpeedTestResult]:
         return _ookla_speedtest_cli()
     elif speedtest_version is _SpeedTestProvider.Sivel:
         return _sivel_speedtest_cli()
+
+    return None

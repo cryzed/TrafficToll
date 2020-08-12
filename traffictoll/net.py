@@ -1,6 +1,8 @@
 import collections
+import collections.abc
 import itertools
 import re
+import shlex
 from typing import DefaultDict, Iterable, Set
 
 import psutil
@@ -21,7 +23,7 @@ def _match_process(process: psutil.Process, predicate: ProcessFilterPredicate) -
         if isinstance(value, int):
             value = str(value)
         elif isinstance(value, (list, tuple)):
-            value = " ".join(value)
+            value = shlex.join(value)
 
         if not re.match(regex, value):
             return False
