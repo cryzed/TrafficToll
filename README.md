@@ -90,7 +90,7 @@ processes:
     # match. Every attribute psutil.Process
     # (https://psutil.readthedocs.io/en/latest/index.html#psutil.Process) provides on
     # Linux can be matched on, using regular expressions. Integer attributes will be
-    # treated as strings and list attributes will be joined using a space before
+    # treated as strings and list attributes will be joined using shlex.join () before
     # matching. If you want to, you can also specify a regular expression with an OR
     # operator and match many processes which will all share the specified bandwidth
     # limit or traffic priority.
