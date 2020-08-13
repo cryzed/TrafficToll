@@ -1,8 +1,7 @@
 import enum
 import json
 import subprocess
-import typing
-from typing import Optional
+from typing import Optional, NamedTuple
 
 from .exceptions import DependencyOutputError
 from .utils import run
@@ -11,7 +10,7 @@ _SPEEDTEST_VERSION_COMMAND = "speedtest --version"
 _OOKLA_SPEEDTEST_COMMAND = "speedtest --format=json"
 _SIVEL_SPEEDTEST_COMMAND = "speedtest --json"
 
-SpeedTestResult = typing.NamedTuple(
+SpeedTestResult = NamedTuple(
     "SpeedTest", [("download_rate", int), ("upload_rate", int)]
 )
 

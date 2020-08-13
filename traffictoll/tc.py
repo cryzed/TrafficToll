@@ -1,8 +1,7 @@
 import atexit
-import collections
 import re
 import subprocess
-from typing import Iterable, Optional, Tuple, Set, Union
+from typing import Iterable, Optional, Tuple, Set, Union, NamedTuple
 
 import psutil
 from loguru import logger
@@ -23,9 +22,7 @@ CLASS_ID_REGEX = re.compile(
 # This ID seems to be fixed for the ingress QDisc
 INGRESS_QDISC_PARENT_ID = "ffff:fff1"
 
-QDisc: Tuple[str, int, int] = collections.namedtuple(
-    "QDisc", ["device", "id", "root_class_id"]
-)
+QDisc = NamedTuple("QDisc", [("device", str), ("id", int), ("root_class_id", int)])
 
 
 def _clean_up(
