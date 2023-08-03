@@ -17,7 +17,7 @@ tt = 'traffictoll.__main__:main'
 [tool.poetry.dependencies]
 python = "^3.6"
 psutil = "^5.6.7"
-loguru = "^0.4.1"
+loguru = ">=0.4.1,<0.6.0"
 "ruamel.yamL" = "^0.16.6"
 
 [tool.poetry.dev-dependencies]
